@@ -2,11 +2,11 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from './types';
-import { MOCK_USERS } from './store';
+import { store, hashPassword } from './store';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -31,45 +31,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const safeStringify = (obj: any) => {
-    const cache = new WeakSet();
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return; // Circular reference found, discard key
-        }
-        cache.add(value);
-      }
-      return value;
-    });
-  };
-
-  const login = (email: string) => {
-    const foundUser = MOCK_USERS.find(u => u.email === email);
-    if (foundUser) {
-      // Create a clean user object to avoid any potential circular references
-      const cleanUser: User = {
-        id: String(foundUser.id),
-        email: String(foundUser.email),
-        name: String(foundUser.name),
-        role: foundUser.role as UserRole,
-        group: foundUser.group ? String(foundUser.group) : undefined,
-        departmentId: foundUser.departmentId ? String(foundUser.departmentId) : undefined
-      };
-      
-      setUser(cleanUser);
-      
-      // Defensive stringify for localStorage
-      try {
-        localStorage.setItem('auth_user', JSON.stringify(cleanUser));
-      } catch (e) {
-        console.error('Failed to persist auth state', e);
-        // Fallback to safeStringify if needed
-        localStorage.setItem('auth_user', safeStringify(cleanUser));
-      }
-    } else {
-      alert('User not found. Try admin@example.com, assessor@example.com, or staff@example.com');
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const foundUser = store.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!foundUser) {
+      return { success: false, error: 'No account found with that email address.' };
     }
+
+    const inputHash = await hashPassword(password);
+    if (foundUser.passwordHash && foundUser.passwordHash !== inputHash) {
+      return { success: false, error: 'Incorrect password. Please try again.' };
+    }
+
+    // If user has no password set yet (legacy), allow login and set hash
+    if (!foundUser.passwordHash) {
+      store.updateUserPassword(foundUser.id, inputHash);
+    }
+
+    const cleanUser: User = {
+      id: String(foundUser.id),
+      email: String(foundUser.email),
+      name: String(foundUser.name),
+      role: foundUser.role as UserRole,
+      groupId: foundUser.groupId ? String(foundUser.groupId) : undefined,
+      departmentId: foundUser.departmentId ? String(foundUser.departmentId) : undefined,
+    };
+
+    setUser(cleanUser);
+    try {
+      localStorage.setItem('auth_user', JSON.stringify(cleanUser));
+    } catch (e) {
+      console.error('Failed to persist auth state', e);
+    }
+
+    return { success: true };
   };
 
   const logout = () => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { store } from '@/lib/store';
 import { 
   FormTemplate, 
   FormPage, 
@@ -47,6 +48,31 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
     }
   };
 
+  // Initialize autofill for Date questions
+  useEffect(() => {
+    const initialAnswers: Record<string, any> = {};
+    template.pages.flatMap(p => p.sections).forEach(item => {
+      if ('type' in item) {
+        if (item.type === QuestionType.DATE && item.dateTimeConfig?.autofill) {
+          if (!answers[item.id]) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            initialAnswers[item.id] = `${year}-${month}-${day}T${hours}:${minutes}`;
+          }
+        } else if (item.prefilledValue && !answers[item.id]) {
+          initialAnswers[item.id] = item.prefilledValue;
+        }
+      }
+    });
+    if (Object.keys(initialAnswers).length > 0) {
+      setAnswers(prev => ({ ...initialAnswers, ...prev }));
+    }
+  }, [template.pages]);
+
   const validatePage = () => {
     const newErrors: Record<string, string> = {};
     currentPage.sections.forEach(item => {
@@ -84,8 +110,8 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
     const submission: FormSubmission = {
       id: uuidv4(),
       templateId: template.id,
-      staffId: user.id,
-      staffName: user.name,
+      trainerId: user.id,
+      trainerName: user.name,
       submittedAt: new Date().toISOString(),
       status: 'PENDING',
       answers,
@@ -110,7 +136,7 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
             <p className="font-bold text-[#141414]">{template.title}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Staff Member</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Trainer</p>
             <p className="font-bold text-[#141414]">{user.name}</p>
           </div>
           <div className="space-y-1">
@@ -126,14 +152,26 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
         <div className="space-y-8">
           <h3 className="text-sm font-bold uppercase tracking-widest text-[#141414]">Answer Summary</h3>
           <div className="space-y-6">
-            {template.pages.flatMap(p => p.sections).filter(s => 'type' in s).map((q: any) => (
-              <div key={q.id} className="space-y-2">
-                <p className="text-xs font-bold text-[#141414]/60">{q.label}</p>
-                <p className="text-sm text-[#141414] border-l-2 border-[#141414]/10 pl-4 py-1">
-                  {answers[q.id] || <span className="italic text-[#141414]/30">Not answered</span>}
-                </p>
-              </div>
-            ))}
+            {template.pages.flatMap(p => p.sections).filter(s => 'type' in s).map((q: any) => {
+              let displayValue = answers[q.id];
+              if (!displayValue) displayValue = <span className="italic text-[#141414]/30">Not answered</span>;
+              else if (q.type === QuestionType.DATE) {
+                try {
+                  displayValue = format(new Date(displayValue), q.dateTimeConfig?.format === '24H' ? 'PPP HH:mm' : 'PPP p');
+                } catch (e) {
+                  // Fallback to raw value
+                }
+              }
+
+              return (
+                <div key={q.id} className="space-y-2">
+                  <p className="text-xs font-bold text-[#141414]/60">{q.label}</p>
+                  <p className="text-sm text-[#141414] border-l-2 border-[#141414]/10 pl-4 py-1">
+                    {displayValue}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -219,42 +257,125 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
                     </div>
                   </div>
 
-                  <div className="relative">
-                    {item.type === QuestionType.TEXT && (
-                      <input
-                        type="text"
-                        value={answers[item.id] || ''}
-                        onChange={(e) => handleAnswerChange(item.id, e.target.value)}
-                        placeholder={item.placeholder}
-                        className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm`}
-                      />
-                    )}
+                  {(() => {
+                    let options = item.options || [];
+                    if (item.useGlobalList && item.globalListId) {
+                      const list = store.getGlobalLists().find(l => l.id === item.globalListId);
+                      if (list) options = list.items;
+                    }
 
-                    {item.type === QuestionType.TEXTAREA && (
-                      <textarea
-                        value={answers[item.id] || ''}
-                        onChange={(e) => handleAnswerChange(item.id, e.target.value)}
-                        placeholder={item.placeholder}
-                        className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm h-32`}
-                      />
-                    )}
+                    return (
+                      <div className="relative">
+                        {item.type === QuestionType.TEXT && (
+                          <input
+                            type="text"
+                            value={answers[item.id] || ''}
+                            onChange={(e) => handleAnswerChange(item.id, e.target.value)}
+                            placeholder={item.placeholder}
+                            className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm`}
+                          />
+                        )}
 
-                    {item.type === QuestionType.DATE && (
-                      <input
-                        type="date"
-                        value={answers[item.id] || ''}
-                        onChange={(e) => handleAnswerChange(item.id, e.target.value)}
-                        className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm`}
-                      />
-                    )}
+                        {/* Text Area */}
+                        {item.type === QuestionType.TEXTAREA && (
+                          <textarea
+                            value={answers[item.id] || ''}
+                            onChange={(e) => handleAnswerChange(item.id, e.target.value)}
+                            className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm h-48`}
+                          />
+                        )}
 
-                    {errors[item.id] && (
-                      <div className="absolute -bottom-6 left-0 flex items-center gap-1 text-red-500 text-[10px] font-bold uppercase tracking-widest">
-                        <AlertCircle size={10} />
-                        {errors[item.id]}
+                        {/* Number Field */}
+                        {item.type === QuestionType.NUMBER && (
+                          <input
+                            type="number"
+                            value={answers[item.id] || ''}
+                            onChange={(e) => handleAnswerChange(item.id, e.target.value)}
+                            className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm font-bold`}
+                          />
+                        )}
+
+                        {/* Date-Time Field */}
+                        {item.type === QuestionType.DATE && (
+                          <div className="space-y-4">
+                            <input
+                              type="datetime-local"
+                              step={item.dateTimeConfig?.minuteInterval ? item.dateTimeConfig.minuteInterval * 60 : 60}
+                              value={answers[item.id] || ''}
+                              onChange={(e) => handleAnswerChange(item.id, e.target.value)}
+                              className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm`}
+                            />
+                            {item.dateTimeConfig && (
+                              <div className="flex gap-4">
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-[#141414]/30">Format: {item.dateTimeConfig.format}</span>
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-[#141414]/30">Interval: {item.dateTimeConfig.minuteInterval}m</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Yes/No, Radio */}
+                        {(item.type === QuestionType.YES_NO || item.type === QuestionType.RADIO) && (
+                          <div className="space-y-3">
+                            {(item.type === QuestionType.YES_NO ? ['Yes', 'No'] : options).map(opt => (
+                              <label key={opt} className="flex items-center gap-3 p-4 bg-[#141414]/5 border border-transparent hover:border-[#F27D26]/30 cursor-pointer transition-all">
+                                <input 
+                                  type="radio" 
+                                  name={item.id} 
+                                  checked={answers[item.id] === opt} 
+                                  onChange={() => handleAnswerChange(item.id, opt)}
+                                  className="w-4 h-4 accent-[#F27D26]" 
+                                />
+                                <span className="text-sm font-medium">{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+
+                        {item.type === QuestionType.SELECT && (
+                          <select
+                            value={answers[item.id] || ''}
+                            onChange={(e) => handleAnswerChange(item.id, e.target.value)}
+                            className={`w-full p-4 bg-[#141414]/5 border-b-2 ${errors[item.id] ? 'border-red-500' : 'border-[#141414]/10'} focus:border-[#F27D26] focus:outline-none transition-colors text-sm font-bold`}
+                          >
+                            <option value="">Select an option...</option>
+                            {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        )}
+
+                        {item.type === QuestionType.CHECKBOX && (
+                          <div className="space-y-3">
+                            {options.map(opt => {
+                              const current = (answers[item.id] || []) as string[];
+                              return (
+                                <label key={opt} className="flex items-center gap-3 p-4 bg-[#141414]/5 border border-transparent hover:border-[#F27D26]/30 cursor-pointer transition-all">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={current.includes(opt)} 
+                                    onChange={(e) => {
+                                      const next = e.target.checked 
+                                        ? [...current, opt] 
+                                        : current.filter(c => c !== opt);
+                                      handleAnswerChange(item.id, next);
+                                    }}
+                                    className="w-4 h-4 accent-[#F27D26] rounded-sm" 
+                                  />
+                                  <span className="text-sm font-medium">{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {errors[item.id] && (
+                          <div className="absolute -bottom-6 left-0 flex items-center gap-1 text-red-500 text-[10px] font-bold uppercase tracking-widest">
+                            <AlertCircle size={10} />
+                            {errors[item.id]}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
               );
             })}

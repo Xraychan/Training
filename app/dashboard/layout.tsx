@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   ShieldCheck,
-  Building2
+  Building2,
+  Database
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,7 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       label: 'Dashboard', 
       href: '/dashboard', 
       icon: LayoutDashboard,
-      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ASSESSOR, UserRole.STAFF]
+      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.TRAINER]
     },
     { 
       label: 'Form Builder', 
@@ -57,15 +58,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     },
     { 
       label: 'Assessments', 
-      href: '/dashboard/assessor/queue', 
+      href: '/dashboard/manager/queue', 
       icon: ClipboardList,
-      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ASSESSOR]
+      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER]
     },
     { 
       label: 'My Progress', 
-      href: '/dashboard/staff/my-forms', 
+      href: '/dashboard/trainer/my-forms', 
       icon: ShieldCheck,
-      roles: [UserRole.STAFF]
+      roles: [UserRole.TRAINER]
     },
     { 
       label: 'User Management', 
@@ -80,10 +81,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
     },
     { 
+      label: 'Global Lists', 
+      href: '/dashboard/admin/settings/lists', 
+      icon: Database,
+      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    },
+    { 
       label: 'Settings', 
       href: '/dashboard/settings', 
       icon: Settings,
-      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ASSESSOR, UserRole.STAFF]
+      roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.TRAINER]
     },
   ];
 

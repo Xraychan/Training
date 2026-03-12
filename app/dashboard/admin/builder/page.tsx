@@ -15,9 +15,10 @@ import {
   Eye,
   FileText,
   Calendar,
-  User as UserIcon
+  User as UserIcon,
+  X
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 
 export default function FormBuilderListPage() {
@@ -25,12 +26,19 @@ export default function FormBuilderListPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<FormTemplate[]>(() => store.getTemplates());
   const [searchQuery, setSearchQuery] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && ![UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(user.role)) {
       router.push('/dashboard');
     }
   }, [user, router]);
+
+  const handleDeleteTemplate = (id: string) => {
+    store.deleteTemplate(id);
+    setTemplates(prev => prev.filter(t => t.id !== id));
+    setConfirmDeleteId(null);
+  };
 
   const filteredTemplates = templates.filter(t => 
     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -42,7 +50,7 @@ export default function FormBuilderListPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[#141414] tracking-tight">Form Builder</h1>
-          <p className="text-[#141414]/50 italic serif">Create and manage assessment templates for your staff.</p>
+          <p className="text-[#141414]/50 italic serif">Create and manage assessment templates for your trainers.</p>
         </div>
         
         <button 
@@ -77,64 +85,83 @@ export default function FormBuilderListPage() {
 
       {/* Template Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredTemplates.map((template, i) => (
-          <motion.div
-            key={template.id}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.05 }}
-            className="bg-white border border-[#141414]/10 group hover:border-[#F27D26] transition-all flex flex-col"
-          >
-            <div className="p-6 flex-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-[#141414]/5 rounded text-[#141414]/40 group-hover:text-[#F27D26] transition-colors">
-                  <FileText size={24} />
+        <AnimatePresence>
+          {filteredTemplates.map((template, i) => (
+            <motion.div
+              key={template.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white border border-[#141414]/10 group hover:border-[#F27D26] transition-all flex flex-col"
+            >
+              <div className="p-6 flex-1">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-[#141414]/5 rounded text-[#141414]/40 group-hover:text-[#F27D26] transition-colors">
+                    <FileText size={24} />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414]">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414]">
-                    <MoreVertical size={16} />
+                
+                <h3 className="text-lg font-bold text-[#141414] mb-2 group-hover:text-[#F27D26] transition-colors">
+                  {template.title}
+                </h3>
+                <p className="text-sm text-[#141414]/60 line-clamp-2 mb-6 italic serif">
+                  {template.description || 'No description provided.'}
+                </p>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">
+                    <Calendar size={12} />
+                    Updated {format(new Date(template.updatedAt), 'MMM dd, yyyy')}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">
+                    <UserIcon size={12} />
+                    Created by {template.createdBy === 'user-1' ? 'Super Admin' : 'Admin'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#141414]/5 border-t border-[#141414]/10 grid grid-cols-3 gap-2">
+                <button 
+                  onClick={() => router.push(`/dashboard/admin/builder/edit/${template.id}`)}
+                  className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414] hover:text-white transition-all"
+                >
+                  <Edit2 size={12} />
+                  Edit
+                </button>
+                <button className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414] hover:text-white transition-all">
+                  <Copy size={12} />
+                  Clone
+                </button>
+                {confirmDeleteId === template.id ? (
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => handleDeleteTemplate(template.id)}
+                      className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all"
+                    >Confirm?</button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="py-2 px-2 text-[10px] hover:bg-[#141414]/10 transition-all"
+                    ><X size={12} /></button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setConfirmDeleteId(template.id)}
+                    className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                  >
+                    <Trash2 size={12} />
+                    Delete
                   </button>
-                </div>
+                )}
               </div>
-              
-              <h3 className="text-lg font-bold text-[#141414] mb-2 group-hover:text-[#F27D26] transition-colors">
-                {template.title}
-              </h3>
-              <p className="text-sm text-[#141414]/60 line-clamp-2 mb-6 italic serif">
-                {template.description || 'No description provided.'}
-              </p>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">
-                  <Calendar size={12} />
-                  Updated {format(new Date(template.updatedAt), 'MMM dd, yyyy')}
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">
-                  <UserIcon size={12} />
-                  Created by {template.createdBy === 'user-1' ? 'Super Admin' : 'Admin'}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-[#141414]/5 border-t border-[#141414]/10 grid grid-cols-3 gap-2">
-              <button 
-                onClick={() => router.push(`/dashboard/admin/builder/edit/${template.id}`)}
-                className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414] hover:text-white transition-all"
-              >
-                <Edit2 size={12} />
-                Edit
-              </button>
-              <button className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414] hover:text-white transition-all">
-                <Copy size={12} />
-                Clone
-              </button>
-              <button className="flex items-center justify-center gap-2 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
-                <Trash2 size={12} />
-                Delete
-              </button>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {/* Empty State / Add New Card */}
         <button 

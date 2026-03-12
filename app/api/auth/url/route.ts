@@ -4,7 +4,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get('provider');
   
-  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const envAppUrl = process.env.APP_URL;
+  const appUrl = (envAppUrl && envAppUrl !== 'MY_APP_URL' && envAppUrl.startsWith('http')) 
+    ? envAppUrl 
+    : 'http://localhost:3000';
   const redirectUri = `${appUrl}/api/auth/callback?provider=${provider}`;
 
   let authUrl = '';

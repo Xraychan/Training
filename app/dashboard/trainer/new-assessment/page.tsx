@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export default function StaffNewAssessmentPage() {
+export default function TrainerNewAssessmentPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<FormTemplate[]>(() => store.getTemplates());
 
@@ -61,7 +61,7 @@ export default function StaffNewAssessmentPage() {
                 </div>
               </div>
               <button 
-                onClick={() => router.push(`/dashboard/staff/assessment/${template.id}`)}
+                onClick={() => router.push(`/dashboard/trainer/assessment/${template.id}`)}
                 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#141414] hover:text-[#F27D26] transition-colors"
               >
                 Start Now

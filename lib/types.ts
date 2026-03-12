@@ -3,20 +3,26 @@ import { z } from 'zod';
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
-  ASSESSOR = 'ASSESSOR',
-  STAFF = 'STAFF',
+  MANAGER = 'MANAGER',
+  TRAINER = 'TRAINER',
 }
 
-export enum StaffGroup {
+export enum TrainerGroup {
   MEDICAL = 'MEDICAL',
   NURSING = 'NURSING',
   ALLIED_HEALTH = 'ALLIED_HEALTH',
   ADMIN = 'ADMIN',
 }
 
+export interface TrainerGroupMember {
+  id: string;
+  name: string;
+}
+
 export interface Department {
   id: string;
   name: string;
+  groups: TrainerGroupMember[];
 }
 
 export interface User {
@@ -24,8 +30,9 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
-  group?: StaffGroup | string; // Expendable
   departmentId?: string;
+  groupId?: string;
+  passwordHash?: string; // SHA-256 hex digest
 }
 
 export enum QuestionType {
@@ -36,6 +43,15 @@ export enum QuestionType {
   CHECKBOX = 'CHECKBOX',
   RADIO = 'RADIO',
   DATE = 'DATE',
+  YES_NO = 'YES_NO',
+}
+
+export interface GlobalList {
+  id: string;
+  name: string;
+  items: string[];
+  sorting: 'NONE' | 'ASC' | 'DESC';
+  isCaseSensitive: boolean;
 }
 
 export interface FormQuestion {
@@ -46,7 +62,18 @@ export interface FormQuestion {
   placeholder?: string;
   required: boolean;
   options?: string[]; // For select, radio, checkbox
+  useGlobalList?: boolean;
+  globalListId?: string;
   prefilledValue?: string;
+  dateTimeConfig?: {
+    format: '12H' | '24H';
+    minuteInterval: number;
+    autofill: boolean;
+    displayStyle: 'INLINE' | 'POPUP';
+    weekStartsOn: 'Sunday' | 'Monday';
+    allowedDays: 'ALL' | 'WEEKDAYS' | 'WEEKENDS';
+    allowedTimeRange?: { start: string; end: string };
+  };
 }
 
 export interface FormSection {
@@ -77,10 +104,10 @@ export interface FormTemplate {
 export interface FormSubmission {
   id: string;
   templateId: string;
-  staffId: string;
-  staffName: string;
-  assessorId?: string;
-  assessorName?: string;
+  trainerId: string;
+  trainerName: string;
+  managerId?: string;
+  managerName?: string;
   submittedAt: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   answers: Record<string, any>;

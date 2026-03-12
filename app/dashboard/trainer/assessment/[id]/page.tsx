@@ -18,13 +18,13 @@ export default function TakeAssessmentPage() {
 
   useEffect(() => {
     if (!template) {
-      router.push('/dashboard/staff/new-assessment');
+      router.push('/dashboard/trainer/new-assessment');
     }
   }, [template, router]);
 
   const handleComplete = (submission: any) => {
     store.addSubmission(submission);
-    router.push('/dashboard/staff/my-forms');
+    router.push('/dashboard/trainer/my-forms');
   };
 
   if (!template || !user) return null;
@@ -35,7 +35,7 @@ export default function TakeAssessmentPage() {
         template={template}
         user={user}
         onComplete={handleComplete}
-        onCancel={() => router.push('/dashboard/staff/new-assessment')}
+        onCancel={() => router.push('/dashboard/trainer/new-assessment')}
       />
     </div>
   );

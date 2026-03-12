@@ -10,7 +10,6 @@ import {
   Clock, 
   AlertCircle,
   Eye,
-  Download,
   Printer
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -21,17 +20,13 @@ export default function MyFormsPage() {
   
   const submissions = useMemo(() => {
     if (!user) return [];
-    return store.getSubmissions().filter(s => s.staffId === user.id);
+    return store.getSubmissions().filter(s => s.trainerId === user.id);
   }, [user]);
   
   const templates = useMemo(() => {
     const templateMap: Record<string, FormTemplate> = {};
     store.getTemplates().forEach(t => { templateMap[t.id] = t; });
     return templateMap;
-  }, []);
-
-  useEffect(() => {
-    // Data is initialized via useMemo
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -50,6 +45,57 @@ export default function MyFormsPage() {
     }
   };
 
+  const handlePrint = (s: FormSubmission) => {
+    const title = templates[s.templateId]?.title || 'Assessment';
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; color: #141414; max-width: 800px; margin: 0 auto; }
+            h1 { font-size: 26px; margin-bottom: 4px; }
+            .subtitle { color: #888; font-size: 13px; margin-bottom: 8px; }
+            .meta-row { display: flex; gap: 32px; margin-bottom: 24px; }
+            .meta-item { }
+            .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #999; font-weight: bold; }
+            .meta-value { font-size: 14px; font-weight: bold; }
+            .status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+            .APPROVED { background: #dcfce7; color: #16a34a; }
+            .PENDING_REVIEW { background: #fff7ed; color: #ea580c; }
+            .REJECTED { background: #fee2e2; color: #dc2626; }
+            hr { margin: 24px 0; border: none; border-top: 1px solid #e5e5e5; }
+            .note { background: #f9f9f9; border-left: 4px solid #F27D26; padding: 16px; font-size: 13px; color: #555; }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <p class="subtitle">Assessment Record</p>
+          <hr />
+          <div class="meta-row">
+            <div class="meta-item">
+              <div class="meta-label">Submitted</div>
+              <div class="meta-value">${format(new Date(s.submittedAt), 'MMM dd, yyyy HH:mm')}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Manager</div>
+              <div class="meta-value">${s.managerName || 'Pending Assignment'}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Status</div>
+              <span class="status ${s.status}">${s.status.replace(/_/g, ' ')}</span>
+            </div>
+          </div>
+          <hr />
+          <div class="note">Form responses are stored securely in the system. Contact your manager for the full detailed report.</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -65,7 +111,7 @@ export default function MyFormsPage() {
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Assessment</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Submitted On</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Status</th>
-                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Assessor</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Manager</th>
                 <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 text-right">Actions</th>
               </tr>
             </thead>
@@ -99,17 +145,22 @@ export default function MyFormsPage() {
                         </div>
                       </td>
                       <td className="p-4 text-xs text-[#141414]/60">
-                        {s.assessorName || <span className="italic opacity-40">Pending Review</span>}
+                        {s.managerName || <span className="italic opacity-40">Pending Review</span>}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all" title="View Details">
+                          <button 
+                            onClick={() => window.open(`/dashboard/manager/review/${s.id}`, '_blank')}
+                            className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all" 
+                            title="View Details"
+                          >
                             <Eye size={16} />
                           </button>
-                          <button className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all" title="Download PDF">
-                            <Download size={16} />
-                          </button>
-                          <button className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all" title="Print">
+                          <button 
+                            onClick={() => handlePrint(s)}
+                            className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all" 
+                            title="Print"
+                          >
                             <Printer size={16} />
                           </button>
                         </div>

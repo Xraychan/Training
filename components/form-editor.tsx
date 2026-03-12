@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { store } from '@/lib/store';
 import { 
   FormTemplate, 
   FormPage, 
   FormQuestion, 
   FormSection, 
-  QuestionType 
+  QuestionType,
+  GlobalList
 } from '@/lib/types';
 import { 
   Plus, 
@@ -25,10 +27,14 @@ import {
   Heading,
   Save,
   ArrowLeft,
-  Eye
+  Eye,
+  Check,
+  Globe2,
+  Database,
+  X
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { motion, Reorder } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface FormEditorProps {
   initialTemplate?: FormTemplate;
@@ -38,6 +44,7 @@ interface FormEditorProps {
 
 export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEditorProps) {
   const [mounted, setMounted] = useState(false);
+  const [globalLists] = useState<GlobalList[]>(() => store.getGlobalLists());
   const [template, setTemplate] = useState<FormTemplate>(initialTemplate || {
     id: uuidv4(),
     title: 'New Assessment Form',
@@ -54,6 +61,7 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
 
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const activePage = template.pages[activePageIndex];
 
@@ -85,8 +93,8 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
           label: 'New Question', 
           required: false,
           description: '',
-          placeholder: '',
-          prefilledValue: ''
+          prefilledValue: '',
+          options: qType === QuestionType.YES_NO ? ['Yes', 'No'] : []
         } as FormQuestion;
 
     const newPages = [...template.pages];
@@ -99,8 +107,23 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
     const newPages = [...template.pages];
     const page = newPages[activePageIndex];
     const index = page.sections.findIndex(item => item.id === itemId);
+    
     if (index !== -1) {
       page.sections[index] = { ...page.sections[index], ...updates };
+      
+      // Default Date-Time config if switching to DATE or if not present
+      const item = page.sections[index];
+      if ('type' in item && item.type === QuestionType.DATE && !item.dateTimeConfig) {
+        item.dateTimeConfig = {
+          format: '24H',
+          minuteInterval: 1,
+          autofill: true,
+          displayStyle: 'POPUP',
+          weekStartsOn: 'Sunday',
+          allowedDays: 'ALL'
+        };
+      }
+      
       updateTemplate({ pages: newPages });
     }
   };
@@ -122,11 +145,25 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
     newPages[activePageIndex].sections = items;
     updateTemplate({ pages: newPages });
   };
+  
+  const handleAddOption = (itemId: string, options: string[] = []) => {
+    updateItem(itemId, { options: [...options, 'New Option'] });
+  };
+
+  const handleUpdateOption = (itemId: string, options: string[], index: number, value: string) => {
+    const newOptions = [...options];
+    newOptions[index] = value;
+    updateItem(itemId, { options: newOptions });
+  };
+
+  const handleRemoveOption = (itemId: string, options: string[], index: number) => {
+    updateItem(itemId, { options: options.filter((_, i) => i !== index) });
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#E4E3E0]">
       {/* Header */}
-      <header className="bg-white border-b border-[#141414]/10 p-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="bg-white border-b border-[#141414]/10 p-4 flex items-center justify-between sticky top-0 z-[110] shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={onCancel} className="p-2 hover:bg-[#141414]/5 rounded transition-colors">
             <ArrowLeft size={20} />
@@ -142,7 +179,10 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-[#141414] text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414]/5 transition-all">
+          <button 
+            onClick={() => setShowPreview(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-[#141414] text-[10px] font-bold uppercase tracking-widest hover:bg-[#141414]/5 transition-all"
+          >
             <Eye size={14} />
             Preview
           </button>
@@ -157,24 +197,16 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar: Controls */}
+        {/* Sidebar */}
         <aside className="w-72 bg-white border-r border-[#141414]/10 p-6 flex flex-col gap-8 overflow-y-auto">
           <div>
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-4">Structure</h3>
             <div className="space-y-2">
-              <button 
-                onClick={() => addItem('SECTION')}
-                className="w-full flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group"
-              >
-                <Heading size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" />
-                Section Header
+              <button onClick={() => addItem('SECTION')} className="w-full flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group">
+                <Heading size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" /> Section Header
               </button>
-              <button 
-                onClick={addPage}
-                className="w-full flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group"
-              >
-                <Layout size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" />
-                New Page Break
+              <button onClick={addPage} className="w-full flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group">
+                <Layout size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" /> New Page Break
               </button>
             </div>
           </div>
@@ -183,198 +215,422 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-4">Questions</h3>
             <div className="grid grid-cols-1 gap-2">
               {[
-                { type: QuestionType.TEXT, label: 'Short Text', icon: Type },
                 { type: QuestionType.TEXTAREA, label: 'Long Text', icon: AlignLeft },
-                { type: QuestionType.NUMBER, label: 'Number', icon: Hash },
-                { type: QuestionType.DATE, label: 'Date', icon: Calendar },
+                { type: QuestionType.YES_NO, label: 'Yes / No', icon: CircleDot },
                 { type: QuestionType.SELECT, label: 'Dropdown', icon: List },
-                { type: QuestionType.RADIO, label: 'Single Choice', icon: CircleDot },
                 { type: QuestionType.CHECKBOX, label: 'Multiple Choice', icon: CheckSquare },
+                { type: QuestionType.DATE, label: 'Date', icon: Calendar },
+                { type: QuestionType.NUMBER, label: 'Number', icon: Hash },
               ].map((q) => (
-                <button 
-                  key={q.type}
-                  onClick={() => addItem('QUESTION', q.type)}
-                  className="flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group"
-                >
-                  <q.icon size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" />
-                  {q.label}
+                <button key={q.type} onClick={() => addItem('QUESTION', q.type)} className="flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group">
+                  <q.icon size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" /> {q.label}
                 </button>
               ))}
             </div>
           </div>
         </aside>
 
-        {/* Main Canvas */}
+        {/* Canvas */}
         <main className="flex-1 overflow-y-auto p-8 lg:p-12">
           <div className="max-w-3xl mx-auto space-y-8">
-            {/* Page Tabs */}
             <div className="flex items-center gap-2 border-b border-[#141414]/10 mb-8 overflow-x-auto pb-px">
               {template.pages.map((page, idx) => (
                 <div key={page.id} className="flex items-center group">
-                  <button
-                    onClick={() => setActivePageIndex(idx)}
-                    className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border-b-2 ${
-                      activePageIndex === idx 
-                        ? 'border-[#141414] text-[#141414]' 
-                        : 'border-transparent text-[#141414]/40 hover:text-[#141414]'
-                    }`}
-                  >
-                    Page {idx + 1}
-                  </button>
-                  {template.pages.length > 1 && (
-                    <button 
-                      onClick={() => removePage(idx)}
-                      className="p-1 opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-50 transition-all rounded"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                  <button onClick={() => setActivePageIndex(idx)} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border-b-2 ${activePageIndex === idx ? 'border-[#141414] text-[#141414]' : 'border-transparent text-[#141414]/40 hover:text-[#141414]'}`}>Page {idx + 1}</button>
+                  {template.pages.length > 1 && <button onClick={() => removePage(idx)} className="p-1 opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-50 rounded"><Trash2 size={12} /></button>}
                 </div>
               ))}
             </div>
 
-            {/* Page Content */}
-            <div className="space-y-4">
-              {activePage.sections.length === 0 ? (
-                <div className="border-2 border-dashed border-[#141414]/10 p-20 text-center">
-                  <p className="text-sm italic serif text-[#141414]/30">This page is empty. Add elements from the sidebar.</p>
-                </div>
-              ) : (
-                activePage.sections.map((item, idx) => {
-                  const isEditing = editingItemId === item.id;
-                  const isQuestion = 'type' in item;
+            <div className="space-y-4 pb-20">
+              {activePage.sections.map((item, idx) => {
+                const isEditing = editingItemId === item.id;
+                const isQuestion = 'type' in item;
+                const question = item as FormQuestion;
 
-                  return (
-                  <motion.div
-                      key={item.id}
-                      layout
-                      className={`bg-white border ${isEditing ? 'border-[#F27D26] shadow-lg' : 'border-[#141414]/10'} group transition-all`}
-                    >
-                      {/* Item Header / Preview */}
-                      <div className="p-6 flex items-start justify-between">
-                        <div className="flex-1 cursor-pointer" onClick={() => setEditingItemId(isEditing ? null : item.id)}>
-                          {isQuestion ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-[#141414]">{item.label}</span>
-                                {item.required && <span className="text-red-500 text-xs">*</span>}
-                              </div>
-                              <p className="text-xs text-[#141414]/40 italic serif">{item.description || 'No description'}</p>
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-[#F27D26]/60 mt-2">
-                                {item.type} Field
-                              </div>
+                return (
+                  <motion.div key={item.id} layout className={`bg-white border ${isEditing ? 'border-[#F27D26] shadow-xl ring-2 ring-[#F27D26]/10' : 'border-[#141414]/10'} group transition-all`}>
+                    <div className="p-6 flex items-start justify-between">
+                      <div className="flex-1 cursor-pointer" onClick={() => setEditingItemId(isEditing ? null : item.id)}>
+                        {isQuestion ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-[#141414] uppercase tracking-tight">{item.label}</span>
+                              {question.required && <span className="text-red-500 text-xs">*</span>}
                             </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <h4 className="text-lg font-bold text-[#141414] uppercase tracking-tight">{item.title}</h4>
-                              <p className="text-xs text-[#141414]/40 italic serif">{item.description || 'No description'}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => moveItem(idx, 'UP')} className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414]">
-                            <ChevronUp size={16} />
-                          </button>
-                          <button onClick={() => moveItem(idx, 'DOWN')} className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414]">
-                            <ChevronDown size={16} />
-                          </button>
-                          <button onClick={() => setEditingItemId(isEditing ? null : item.id)} className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#F27D26]">
-                            <Settings2 size={16} />
-                          </button>
-                          <button onClick={() => removeItem(item.id)} className="p-2 hover:bg-red-50 rounded text-[#141414]/30 hover:text-red-500">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                            <p className="text-xs text-[#141414]/40 italic serif">{question.description || 'No description'}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <h4 className="text-lg font-bold text-[#141414] uppercase tracking-tight">{item.title}</h4>
+                            <p className="text-xs text-[#141414]/40 italic serif">{item.description || 'No description'}</p>
+                          </div>
+                        )}
                       </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => moveItem(idx, 'UP')} className="p-2 text-[#141414]/20 hover:text-[#141414]"><ChevronUp size={16} /></button>
+                        <button onClick={() => moveItem(idx, 'DOWN')} className="p-2 text-[#141414]/20 hover:text-[#141414]"><ChevronDown size={16} /></button>
+                        <button onClick={() => setEditingItemId(isEditing ? null : item.id)} className={`p-2 transition-colors ${isEditing ? 'text-[#F27D26]' : 'text-[#141414]/20 hover:text-[#141414]'}`}><Settings2 size={16} /></button>
+                        <button onClick={() => removeItem(item.id)} className="p-2 text-[#141414]/10 hover:text-red-500"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
 
-                      {/* Edit Panel */}
-                      {isEditing && (
-                        <div className="p-6 bg-[#141414]/5 border-t border-[#141414]/10 space-y-6 animate-in slide-in-from-top-2 duration-200">
-                          {isQuestion ? (
+                    {isEditing && (
+                      <div className="p-8 bg-[#F9F8F7] border-t border-[#141414]/10 space-y-8">
+                        {isQuestion ? (
+                          <div className="grid grid-cols-1 gap-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Label</label>
-                                  <input 
-                                    type="text" 
-                                    value={item.label}
-                                    onChange={(e) => updateItem(item.id, { label: e.target.value })}
-                                    className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm"
-                                  />
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Label</label>
+                                <input type="text" value={question.label} onChange={(e) => updateItem(item.id, { label: e.target.value })} className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm font-bold" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Instructions</label>
+                                <input type="text" value={question.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm" />
+                              </div>
+                            </div>
+
+                            {/* Date-Time Configuration Panel */}
+                            {question.type === QuestionType.DATE && (
+                              <div className="border-t border-[#141414]/5 pt-8 space-y-8 animate-in fade-in duration-500">
+                                <h5 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Date-Time Settings</h5>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="space-y-6">
+                                    {/* Time Format */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-3">Time Format</label>
+                                      <div className="flex bg-[#141414]/5 p-1 rounded w-fit">
+                                        {['12H', '24H'].map(f => (
+                                          <button 
+                                            key={f}
+                                            onClick={() => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, format: f } })}
+                                            className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${question.dateTimeConfig?.format === f ? 'bg-white shadow-sm text-[#F27D26]' : 'text-[#141414]/40 hover:text-[#141414]'}`}
+                                          >
+                                            {f === '12H' ? '12 Hours' : '24 Hours'}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Minute Interval */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-3">Minute Interval</label>
+                                      <div className="flex flex-wrap gap-2">
+                                        {[1, 5, 10, 15, 30].map(m => (
+                                          <button 
+                                            key={m}
+                                            onClick={() => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, minuteInterval: m } })}
+                                            className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all ${question.dateTimeConfig?.minuteInterval === m ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/5' : 'border-[#141414]/10 text-[#141414]/40 hover:border-[#141414]'}`}
+                                          >
+                                            {m}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Autofill */}
+                                    <div className="flex items-center gap-3 py-2">
+                                      <div 
+                                        onClick={() => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, autofill: !question.dateTimeConfig?.autofill } })}
+                                        className={`w-5 h-5 border-2 flex items-center justify-center transition-all cursor-pointer ${question.dateTimeConfig?.autofill ? 'bg-[#F27D26] border-[#F27D26] text-white' : 'border-[#141414]/10'}`}
+                                      >
+                                        {question.dateTimeConfig?.autofill && <Check size={12} />}
+                                      </div>
+                                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Autofill Date & Time of Response</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-6">
+                                    {/* Display Style */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-3">Display Style</label>
+                                      <div className="flex bg-[#141414]/5 p-1 rounded w-fit">
+                                        {['INLINE', 'POPUP'].map(s => (
+                                          <button 
+                                            key={s}
+                                            onClick={() => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, displayStyle: s } })}
+                                            className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-all ${question.dateTimeConfig?.displayStyle === s ? 'bg-white shadow-sm text-[#F27D26]' : 'text-[#141414]/40 hover:text-[#141414]'}`}
+                                          >
+                                            {s === 'INLINE' ? 'Inline' : 'Pop-up'}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Week Starts On */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Week Starts On</label>
+                                      <select 
+                                        value={question.dateTimeConfig?.weekStartsOn} 
+                                        onChange={(e) => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, weekStartsOn: e.target.value } })}
+                                        className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-xs font-bold uppercase"
+                                      >
+                                        <option value="Sunday">Sunday</option>
+                                        <option value="Monday">Monday</option>
+                                      </select>
+                                    </div>
+
+                                    {/* Allowed Days */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Allowed Days of Week</label>
+                                      <select 
+                                        value={question.dateTimeConfig?.allowedDays} 
+                                        onChange={(e) => updateItem(question.id, { dateTimeConfig: { ...question.dateTimeConfig, allowedDays: e.target.value } })}
+                                        className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-xs font-bold uppercase"
+                                      >
+                                        <option value="ALL">All Days</option>
+                                        <option value="WEEKDAYS">Weekdays</option>
+                                        <option value="WEEKENDS">Weekends</option>
+                                      </select>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Description / Help Text</label>
+                              </div>
+                            )}
+
+                            {/* Prefilled Value Logic (Numeric for Number field, Hidden for choice types) */}
+                            {![QuestionType.DATE, QuestionType.SELECT, QuestionType.RADIO, QuestionType.CHECKBOX, QuestionType.YES_NO].includes(question.type) && (
+                              <div className="border-t border-[#141414]/5 pt-8">
+                                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">
+                                  {question.type === QuestionType.TEXTAREA ? 'Default Text' : 'Initial Value'}
+                                </label>
+                                {question.type === QuestionType.TEXTAREA ? (
                                   <textarea 
-                                    value={item.description}
-                                    onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                                    className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm h-20"
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Placeholder</label>
-                                  <input 
-                                    type="text" 
-                                    value={item.placeholder}
-                                    onChange={(e) => updateItem(item.id, { placeholder: e.target.value })}
-                                    className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Prefilled Value</label>
-                                  <input 
-                                    type="text" 
-                                    value={item.prefilledValue}
+                                    value={question.prefilledValue} 
                                     onChange={(e) => updateItem(item.id, { prefilledValue: e.target.value })}
-                                    className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm"
+                                    className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm h-32"
+                                    placeholder="Enter initial value for the text area..."
                                   />
+                                ) : (
+                                  <input 
+                                    type={question.type === QuestionType.NUMBER ? 'number' : 'text'}
+                                    value={question.prefilledValue} 
+                                    onChange={(e) => updateItem(item.id, { prefilledValue: e.target.value })}
+                                    className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm"
+                                  />
+                                )}
+                              </div>
+                            )}
+
+                            {/* Options Editor for Choice Types */}
+                            {[QuestionType.SELECT, QuestionType.RADIO, QuestionType.CHECKBOX, QuestionType.YES_NO].includes(question.type) && (
+                              <div className="border-t border-[#141414]/5 pt-8 space-y-6">
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Choice Configuration</h5>
+                                  {question.type !== QuestionType.YES_NO && (
+                                    <div className="flex bg-[#141414]/5 p-1 rounded">
+                                      <button 
+                                        onClick={() => updateItem(question.id, { useGlobalList: false })}
+                                        className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all ${!question.useGlobalList ? 'bg-white shadow-sm text-[#F27D26]' : 'text-[#141414]/40'}`}
+                                      >Add Manually</button>
+                                      <button 
+                                        onClick={() => updateItem(question.id, { useGlobalList: true })}
+                                        className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all ${question.useGlobalList ? 'bg-white shadow-sm text-[#F27D26]' : 'text-[#141414]/40'}`}
+                                      >Use Global List</button>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-4">
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={item.required}
-                                      onChange={(e) => updateItem(item.id, { required: e.target.checked })}
-                                      className="w-4 h-4 accent-[#141414]"
-                                    />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/60">Mandatory</span>
-                                  </label>
-                                </div>
+
+                                {question.useGlobalList ? (
+                                  <div className="space-y-4">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Choose From</label>
+                                      <select 
+                                        value={question.globalListId} 
+                                        onChange={(e) => updateItem(question.id, { globalListId: e.target.value })}
+                                        className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm font-bold"
+                                      >
+                                        <option value="">Select a global list...</option>
+                                        {globalLists.map(list => <option key={list.id} value={list.id}>{list.name}</option>)}
+                                      </select>
+                                    </div>
+                                    {question.globalListId && (
+                                      <div className="bg-[#141414]/5 p-4 rounded border border-dashed border-[#141414]/10">
+                                        <p className="text-[9px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2 flex items-center gap-2"><Globe2 size={12} /> List Preview</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {globalLists.find(l => l.id === question.globalListId)?.items.map(item => <span key={item} className="px-2 py-1 bg-white border border-[#141414]/10 text-[9px] font-bold uppercase tracking-tight">{item}</span>)}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {(question.options || []).map((opt, oIdx) => (
+                                      <div key={oIdx} className="flex items-center gap-3">
+                                        <div 
+                                          onClick={() => updateItem(question.id, { prefilledValue: opt })}
+                                          className={`w-6 h-6 border-2 flex items-center justify-center cursor-pointer transition-all ${question.prefilledValue === opt ? 'bg-[#F27D26] border-[#F27D26] text-white' : 'border-[#141414]/10 hover:border-[#141414]'}`}
+                                        >
+                                          {question.prefilledValue === opt && <Check size={12} />}
+                                        </div>
+                                        <input 
+                                          type="text" 
+                                          value={opt} 
+                                          onChange={(e) => handleUpdateOption(question.id, question.options!, oIdx, e.target.value)}
+                                          className="flex-1 p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm"
+                                          readOnly={question.type === QuestionType.YES_NO}
+                                        />
+                                        {question.type !== QuestionType.YES_NO && (
+                                          <button onClick={() => handleRemoveOption(question.id, question.options!, oIdx)} className="p-2 text-[#141414]/20 hover:text-red-500"><Trash2 size={16} /></button>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {question.type !== QuestionType.YES_NO && (
+                                      <button onClick={() => handleAddOption(question.id, question.options)} className="text-[10px] font-bold uppercase tracking-widest text-[#F27D26] flex items-center gap-1 hover:underline">
+                                        <Plus size={12} /> Add Manual Option
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
+                            )}
+
+                            <div className="flex items-center gap-6 border-t border-[#141414]/5 pt-6">
+                              <label className="flex items-center gap-3 cursor-pointer group">
+                                <div className={`w-5 h-5 border-2 flex items-center justify-center transition-all ${question.required ? 'bg-[#141414] border-[#141414] text-white' : 'border-[#141414]/10 group-hover:border-[#141414]'}`}>{question.required && <Check size={12} />}</div>
+                                <input type="checkbox" className="hidden" checked={question.required} onChange={(e) => updateItem(question.id, { required: e.target.checked })} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Mandatory Field</span>
+                              </label>
                             </div>
-                          ) : (
-                            <div className="space-y-4">
-                              <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Section Title</label>
-                                <input 
-                                  type="text" 
-                                  value={item.title}
-                                  onChange={(e) => updateItem(item.id, { title: e.target.value })}
-                                  className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm font-bold"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/50 mb-2">Section Description</label>
-                                <textarea 
-                                  value={item.description}
-                                  onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                                  className="w-full p-2 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm h-20"
-                                />
-                              </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Section Title</label>
+                              <input type="text" value={item.title} onChange={(e) => updateItem(item.id, { title: e.target.value })} className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm font-bold uppercase" />
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })
-              )}
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Section Description</label>
+                              <textarea value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} className="w-full p-3 bg-white border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm h-24" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         </main>
       </div>
+
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {showPreview && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowPreview(false)}
+              className="absolute inset-0 bg-[#141414]/70 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+              className="relative w-full max-w-3xl max-h-[90vh] bg-white overflow-y-auto shadow-2xl"
+            >
+              <div className="sticky top-0 bg-white border-b border-[#141414]/10 p-6 flex items-center justify-between z-10">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#F27D26] mb-1">Form Preview</p>
+                  <h2 className="text-2xl font-bold text-[#141414] tracking-tight">{template.title}</h2>
+                  {template.description && <p className="text-sm text-[#141414]/50 italic mt-1">{template.description}</p>}
+                </div>
+                <button onClick={() => setShowPreview(false)} className="p-2 text-[#141414]/30 hover:text-[#141414] transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="p-8 space-y-10">
+                {template.pages.map((page, pageIdx) => (
+                  <div key={page.id}>
+                    {template.pages.length > 1 && (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/30 mb-6 pb-2 border-b border-[#141414]/10">Page {pageIdx + 1}</p>
+                    )}
+                    <div className="space-y-6">
+                      {page.sections.map((item) => {
+                        const isQuestion = 'type' in item;
+                        if (!isQuestion) {
+                          return (
+                            <div key={item.id} className="pt-4 pb-2 border-b-2 border-[#141414]">
+                              <h3 className="text-lg font-bold text-[#141414] uppercase tracking-tight">{item.title}</h3>
+                              {item.description && <p className="text-sm text-[#141414]/50 italic mt-1">{item.description}</p>}
+                            </div>
+                          );
+                        }
+                        const q = item as any;
+                        const listItems = q.useGlobalList && q.globalListId
+                          ? (globalLists.find(l => l.id === q.globalListId)?.items || [])
+                          : (q.options || []);
+                        return (
+                          <div key={q.id} className="space-y-2">
+                            <label className="block text-sm font-bold text-[#141414]">
+                              {q.label}
+                              {q.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {q.description && <p className="text-xs text-[#141414]/40 italic">{q.description}</p>}
+                            {q.type === 'TEXTAREA' && (
+                              <textarea className="w-full p-3 border border-[#141414]/20 rounded bg-[#141414]/5 text-sm h-24" placeholder={q.prefilledValue || 'Enter text...'} readOnly />
+                            )}
+                            {q.type === 'TEXT' && (
+                              <input type="text" className="w-full p-3 border border-[#141414]/20 rounded bg-[#141414]/5 text-sm" placeholder={q.prefilledValue || 'Enter text...'} readOnly />
+                            )}
+                            {q.type === 'NUMBER' && (
+                              <input type="number" className="w-full p-3 border border-[#141414]/20 rounded bg-[#141414]/5 text-sm" placeholder={q.prefilledValue || '0'} readOnly />
+                            )}
+                            {q.type === 'DATE' && (
+                              <input type="date" className="w-full p-3 border border-[#141414]/20 rounded bg-[#141414]/5 text-sm" readOnly />
+                            )}
+                            {q.type === 'YES_NO' && (
+                              <div className="flex gap-4">
+                                {['Yes', 'No'].map(opt => (
+                                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                                    <div className="w-4 h-4 rounded-full border-2 border-[#141414]/30" />
+                                    <span className="text-sm">{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {q.type === 'SELECT' && (
+                              <select className="w-full p-3 border border-[#141414]/20 rounded bg-[#141414]/5 text-sm" disabled>
+                                <option>Select an option...</option>
+                                {listItems.map((opt: string) => <option key={opt}>{opt}</option>)}
+                              </select>
+                            )}
+                            {q.type === 'RADIO' && (
+                              <div className="space-y-2">
+                                {listItems.map((opt: string) => (
+                                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                                    <div className="w-4 h-4 rounded-full border-2 border-[#141414]/30" />
+                                    <span className="text-sm">{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {q.type === 'CHECKBOX' && (
+                              <div className="space-y-2">
+                                {listItems.map((opt: string) => (
+                                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                                    <div className="w-4 h-4 border-2 border-[#141414]/30" />
+                                    <span className="text-sm">{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="sticky bottom-0 bg-white border-t border-[#141414]/10 p-4 flex justify-end gap-3">
+                <button onClick={() => setShowPreview(false)} className="px-6 py-2 border border-[#141414]/20 text-sm font-bold uppercase tracking-widest hover:bg-[#141414]/5">
+                  Close Preview
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
