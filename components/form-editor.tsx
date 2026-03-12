@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { store } from '@/lib/store';
 import { 
   FormTemplate, 
@@ -31,7 +31,9 @@ import {
   Check,
   Globe2,
   Database,
-  X
+  X,
+  Upload,
+  Download
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -44,6 +46,7 @@ interface FormEditorProps {
 
 export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEditorProps) {
   const [mounted, setMounted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [globalLists] = useState<GlobalList[]>(() => store.getGlobalLists());
   const [template, setTemplate] = useState<FormTemplate>(initialTemplate || {
     id: uuidv4(),
@@ -91,9 +94,9 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
           id: uuidv4(), 
           type: qType || QuestionType.TEXT, 
           label: 'New Question', 
-          required: false,
+          required: qType === QuestionType.YES_NO,
           description: '',
-          prefilledValue: '',
+          prefilledValue: qType === QuestionType.YES_NO ? 'Yes' : '',
           options: qType === QuestionType.YES_NO ? ['Yes', 'No'] : []
         } as FormQuestion;
 
@@ -160,6 +163,142 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
     updateItem(itemId, { options: options.filter((_, i) => i !== index) });
   };
 
+  const downloadCSVTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,Question/Label,Type (Optional),Required (Optional),Options (Optional)\nWhat is your full name?,TEXT,TRUE,\nDid you wash your hands?,,, \nChoose your department,SELECT,TRUE,HR|Engineering|Sales\nBackground Information,SECTION,,";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Form_Builder_Template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n');
+      if (lines.length < 2) return; // Need at least header + 1 row
+      
+      const newItems: any[] = [];
+      
+      // Start from 1 to skip header
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Robust CSV parsing to handle commas inside quotes
+        const columns: string[] = [];
+        let currentColumn = '';
+        let insideQuotes = false;
+
+        for (let j = 0; j < line.length; j++) {
+          const char = line[j];
+          if (char === '"' && line[j + 1] === '"') {
+            // Escaped quote
+            currentColumn += '"';
+            j++; 
+          } else if (char === '"') {
+            // Toggle quote state
+            insideQuotes = !insideQuotes;
+          } else if (char === ',' && !insideQuotes) {
+            // End of column
+            columns.push(currentColumn);
+            currentColumn = '';
+          } else {
+            currentColumn += char;
+          }
+        }
+        columns.push(currentColumn); // Push the last column
+
+        if (columns.length < 1) continue; // Need at least a Label
+
+        let label = columns[0].trim();
+        const rawType = (columns[1] || '').trim().toUpperCase();
+        
+        const requiredStr = (columns[2] || '').trim().toUpperCase();
+        const required = requiredStr === 'TRUE' || requiredStr === 'YES' || requiredStr === '1';
+        
+        const optionsStr = (columns[3] || '').trim();
+        let options: string[] = [];
+        if (optionsStr) {
+          options = optionsStr.split('|').map(o => o.trim()).filter(Boolean);
+        }
+
+        const id = uuidv4();
+
+        if (rawType === 'SECTION') {
+          newItems.push({
+            id,
+            title: label,
+            description: ''
+          } as FormSection);
+        } else {
+          // Validate QuestionType - Default to YES_NO
+          const validTypes = Object.values(QuestionType);
+          let type = QuestionType.YES_NO; // Default
+          
+          if (rawType && validTypes.includes(rawType as QuestionType)) {
+             type = rawType as QuestionType;
+          }
+
+          let finalRequired = required;
+          let finalPrefilledValue = '';
+
+          if (type === QuestionType.YES_NO) {
+             // If not explicitly set via CSV, default YES_NO to required=true and prefilledValue='Yes'
+             if (!requiredStr) finalRequired = true;
+             finalPrefilledValue = 'Yes';
+          }
+
+          const q: Partial<FormQuestion> = {
+            id,
+            type,
+            label,
+            required: finalRequired,
+            description: '',
+            prefilledValue: finalPrefilledValue
+          };
+
+          if ([QuestionType.SELECT, QuestionType.RADIO, QuestionType.CHECKBOX].includes(type)) {
+            q.options = options.length > 0 ? options : ['Option 1'];
+            q.useGlobalList = false;
+          } else if (type === QuestionType.YES_NO) {
+             q.options = ['Yes', 'No'];
+          } else if (type === QuestionType.DATE) {
+            q.dateTimeConfig = {
+              format: '24H',
+              minuteInterval: 1,
+              autofill: true,
+              displayStyle: 'POPUP',
+              weekStartsOn: 'Sunday',
+              allowedDays: 'ALL'
+            };
+          }
+
+          newItems.push(q as FormQuestion);
+        }
+      }
+
+      const newPages = [...template.pages];
+      newPages[activePageIndex].sections = [...newPages[activePageIndex].sections, ...newItems];
+      updateTemplate({ pages: newPages });
+      
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    
+    reader.readAsText(file);
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#E4E3E0]">
       {/* Header */}
@@ -207,6 +346,36 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
               </button>
               <button onClick={addPage} className="w-full flex items-center gap-3 p-3 border border-[#141414]/10 hover:border-[#141414] transition-all text-sm font-medium group">
                 <Layout size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" /> New Page Break
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-4 flex items-center justify-between">
+              Bulk Actions
+            </h3>
+            <div className="space-y-2">
+              <input
+                type="file"
+                accept=".csv"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                className="w-full flex items-center gap-3 p-3 border border-dashed border-[#141414]/20 hover:border-[#F27D26] hover:bg-[#F27D26]/5 transition-all text-sm font-medium group"
+              >
+                <Upload size={18} className="text-[#141414]/40 group-hover:text-[#F27D26]" /> 
+                <span className="group-hover:text-[#F27D26]">Import CSV</span>
+              </button>
+              <button 
+                onClick={downloadCSVTemplate} 
+                className="w-full flex flex-col items-start gap-1 p-3 border border-[#141414]/10 hover:bg-[#141414]/5 transition-all group"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#141414]/60 group-hover:text-[#141414]">
+                  <Download size={12} /> Download Template
+                </div>
               </button>
             </div>
           </div>
