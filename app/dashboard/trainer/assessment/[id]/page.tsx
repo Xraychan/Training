@@ -24,7 +24,7 @@ export default function TakeAssessmentPage() {
 
   const handleComplete = (submission: any) => {
     store.addSubmission(submission);
-    router.push('/dashboard/trainer/my-forms');
+    // Navigation is now handled by the Thank You screen inside FormRenderer
   };
 
   if (!template || !user) return null;

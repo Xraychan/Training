@@ -33,10 +33,14 @@ import {
   Database,
   X,
   Upload,
-  Download
+  Download,
+  GripVertical,
+  Palette
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { FORM_THEMES, THEME_META } from '@/lib/themes';
 
 interface FormEditorProps {
   initialTemplate?: FormTemplate;
@@ -145,6 +149,23 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
     if (newIndex < 0 || newIndex >= items.length) return;
     
     [items[index], items[newIndex]] = [items[newIndex], items[index]];
+    newPages[activePageIndex].sections = items;
+    updateTemplate({ pages: newPages });
+  };
+  
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+    
+    if (sourceIndex === destIndex) return;
+    
+    const newPages = [...template.pages];
+    const items = [...newPages[activePageIndex].sections];
+    const [reorderedItem] = items.splice(sourceIndex, 1);
+    items.splice(destIndex, 0, reorderedItem);
+    
     newPages[activePageIndex].sections = items;
     updateTemplate({ pages: newPages });
   };
@@ -397,6 +418,46 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
               ))}
             </div>
           </div>
+
+          {/* Theme Picker */}
+          <div>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-4 flex items-center gap-2">
+              <Palette size={12} /> Theme
+            </h3>
+            <div className="grid grid-cols-1 gap-2">
+              {FORM_THEMES.map((theme) => {
+                const meta = THEME_META[theme.id];
+                const isActive = (template.themeId ?? 'default') === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => updateTemplate({ themeId: theme.id })}
+                    className={`w-full text-left p-3 border-2 transition-all ${
+                      isActive
+                        ? 'border-[#F27D26]'
+                        : 'border-[#141414]/10 hover:border-[#141414]/40'
+                    }`}
+                  >
+                    {/* Mini visual preview */}
+                    <div
+                      className="w-full h-10 rounded mb-2 flex items-end overflow-hidden"
+                      style={{ background: theme.backgroundColor }}
+                    >
+                      <div className="w-full h-7 flex items-center px-2 gap-1" style={{ background: theme.cardColor }}>
+                        <div className="w-8 h-1.5 rounded-full" style={{ background: theme.accentColor }} />
+                        <div className="flex-1 h-1 rounded-full opacity-30" style={{ background: theme.fontColor }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#141414]">{meta.name}</span>
+                      {isActive && <span className="text-[10px] text-[#F27D26] font-bold uppercase tracking-widest">Active</span>}
+                    </div>
+                    <p className="text-[10px] text-[#141414]/40 mt-0.5">{meta.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </aside>
 
         {/* Canvas */}
@@ -411,38 +472,60 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
               ))}
             </div>
 
-            <div className="space-y-4 pb-20">
-              {activePage.sections.map((item, idx) => {
-                const isEditing = editingItemId === item.id;
-                const isQuestion = 'type' in item;
-                const question = item as FormQuestion;
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="form-canvas">
+                {(provided) => (
+                  <div 
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="space-y-4 pb-20"
+                  >
+                    {activePage.sections.map((item, idx) => {
+                      const isEditing = editingItemId === item.id;
+                      const isQuestion = 'type' in item;
+                      const question = item as FormQuestion;
 
-                return (
-                  <motion.div key={item.id} layout className={`bg-white border ${isEditing ? 'border-[#F27D26] shadow-xl ring-2 ring-[#F27D26]/10' : 'border-[#141414]/10'} group transition-all`}>
-                    <div className="p-6 flex items-start justify-between">
-                      <div className="flex-1 cursor-pointer" onClick={() => setEditingItemId(isEditing ? null : item.id)}>
-                        {isQuestion ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-[#141414] uppercase tracking-tight">{item.label}</span>
-                              {question.required && <span className="text-red-500 text-xs">*</span>}
-                            </div>
-                            <p className="text-xs text-[#141414]/40 italic serif">{question.description || 'No description'}</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <h4 className="text-lg font-bold text-[#141414] uppercase tracking-tight">{item.title}</h4>
-                            <p className="text-xs text-[#141414]/40 italic serif">{item.description || 'No description'}</p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => moveItem(idx, 'UP')} className="p-2 text-[#141414]/20 hover:text-[#141414]"><ChevronUp size={16} /></button>
-                        <button onClick={() => moveItem(idx, 'DOWN')} className="p-2 text-[#141414]/20 hover:text-[#141414]"><ChevronDown size={16} /></button>
-                        <button onClick={() => setEditingItemId(isEditing ? null : item.id)} className={`p-2 transition-colors ${isEditing ? 'text-[#F27D26]' : 'text-[#141414]/20 hover:text-[#141414]'}`}><Settings2 size={16} /></button>
-                        <button onClick={() => removeItem(item.id)} className="p-2 text-[#141414]/10 hover:text-red-500"><Trash2 size={16} /></button>
-                      </div>
-                    </div>
+                      return (
+                        <Draggable key={item.id} draggableId={item.id} index={idx}>
+                          {(provided, snapshot) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`bg-white border ${isEditing ? 'border-[#F27D26] shadow-xl ring-2 ring-[#F27D26]/10' : 'border-[#141414]/10'} group transition-shadow ${snapshot.isDragging ? 'shadow-2xl opacity-90 rotate-[0.5deg]' : ''}`}
+                            >
+                              <div className="p-6 flex items-start justify-between">
+                                <div className="flex flex-1 items-start gap-3">
+                                  <div 
+                                    {...provided.dragHandleProps}
+                                    title="Drag to reorder"
+                                    className="flex flex-col items-center justify-center w-7 h-10 rounded bg-[#141414]/5 hover:bg-[#F27D26]/15 hover:text-[#F27D26] text-[#141414]/30 cursor-grab active:cursor-grabbing transition-all flex-shrink-0 mt-0.5 group/handle"
+                                  >
+                                    <GripVertical size={20} strokeWidth={2} />
+                                  </div>
+                                  <div className="flex-1 cursor-pointer" onClick={() => setEditingItemId(isEditing ? null : item.id)}>
+                                    {isQuestion ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-bold text-[#141414] uppercase tracking-tight">{item.label}</span>
+                                          {question.required && <span className="text-red-500 text-xs">*</span>}
+                                        </div>
+                                        <p className="text-xs text-[#141414]/40 italic serif">{question.description || 'No description'}</p>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <h4 className="text-lg font-bold text-[#141414] uppercase tracking-tight">{item.title}</h4>
+                                        <p className="text-xs text-[#141414]/40 italic serif">{item.description || 'No description'}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => moveItem(idx, 'UP')} className="p-2 text-[#141414]/20 hover:text-[#141414]" title="Move Up"><ChevronUp size={16} /></button>
+                                  <button onClick={() => moveItem(idx, 'DOWN')} className="p-2 text-[#141414]/20 hover:text-[#141414]" title="Move Down"><ChevronDown size={16} /></button>
+                                  <button onClick={() => setEditingItemId(isEditing ? null : item.id)} className={`p-2 transition-colors ${isEditing ? 'text-[#F27D26]' : 'text-[#141414]/20 hover:text-[#141414]'}`} title="Settings"><Settings2 size={16} /></button>
+                                  <button onClick={() => removeItem(item.id)} className="p-2 text-[#141414]/10 hover:text-red-500" title="Delete"><Trash2 size={16} /></button>
+                                </div>
+                              </div>
 
                     {isEditing && (
                       <div className="p-8 bg-[#F9F8F7] border-t border-[#141414]/10 space-y-8">
@@ -677,10 +760,16 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
                         )}
                       </div>
                     )}
-                  </motion.div>
-                );
-              })}
-            </div>
+                  </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           </div>
         </main>
       </div>

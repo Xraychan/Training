@@ -87,6 +87,19 @@ export interface FormPage {
   sections: (FormSection | FormQuestion)[];
 }
 
+export interface FormTheme {
+  id: string;
+  backgroundColor: string;
+  backgroundImage?: string;
+  cardColor: string;
+  fontFamily: string;
+  fontColor: string;
+  labelColor: string;
+  accentColor: string;
+  borderRadius: number;
+  inputBackground: string;
+  inputBorderColor: string;
+}
 export interface FormTemplate {
   id: string;
   title: string;
@@ -95,10 +108,7 @@ export interface FormTemplate {
   createdAt: string;
   updatedAt: string;
   pages: FormPage[];
-  style?: {
-    primaryColor?: string;
-    logoUrl?: string;
-  };
+  themeId?: string;
 }
 
 export interface FormSubmission {
