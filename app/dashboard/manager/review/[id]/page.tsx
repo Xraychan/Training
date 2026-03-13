@@ -14,7 +14,8 @@ import {
   MessageSquare,
   User as UserIcon,
   Calendar,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
@@ -146,7 +147,23 @@ export default function ReviewSubmissionPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Department</p>
-                  <p className="text-sm font-bold text-[#141414]">Emergency Medicine</p>
+                  <p className="text-sm font-bold text-[#141414]">
+                    {store.getDepartments().find(d => d.id === submission.departmentId)?.name || 'Not Assigned'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-white border border-[#141414]/10 rounded-full flex items-center justify-center text-[#141414]/40">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Group</p>
+                  <p className="text-sm font-bold text-[#141414]">
+                    {submission.departmentId 
+                      ? store.getGroups(submission.departmentId).find(g => g.id === submission.groupId)?.name || 'Not Assigned'
+                      : 'Not Assigned'
+                    }
+                  </p>
                 </div>
               </div>
             </div>

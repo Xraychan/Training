@@ -1,4 +1,4 @@
-import { User, UserRole, Department, FormTemplate, FormSubmission, GlobalList } from './types';
+import { User, UserRole, Department, FormTemplate, FormSubmission, GlobalList, AppNotification } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Password Utilities ──────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export const MOCK_USERS: User[] = [
     name: 'Dr. Jane Smith',
     role: UserRole.MANAGER,
     departmentId: 'dept-1',
-    groupId: 'group-2',
+    groupId: 'group-1',
     passwordHash: DEFAULT_PASS_HASH,
   },
   {
@@ -109,8 +109,8 @@ export function consumeResetToken(token: string): string | null {
 }
 
 // ─── Persistent Store ────────────────────────────────────────────────────────
-const STORAGE_KEY = 'certifypro_store_v3';   // bumped from v2 → forces re-seed with new roles
-const LEGACY_KEY  = 'certifypro_store';       // old key — cleaned up on first load
+const STORAGE_KEY = 'certifypro_store_v4';   // bumped from v3 → v4 for notifications
+const LEGACY_KEY  = 'certifypro_store';
 
 interface StoreData {
   templates: FormTemplate[];
@@ -118,6 +118,7 @@ interface StoreData {
   users: User[];
   departments: Department[];
   globalLists: GlobalList[];
+  notifications: AppNotification[];
 }
 
 class Store {
@@ -126,6 +127,7 @@ class Store {
   private users: User[];
   private departments: Department[];
   private globalLists: GlobalList[];
+  private notifications: AppNotification[];
 
   constructor() {
     const defaults: StoreData = {
@@ -137,6 +139,7 @@ class Store {
         { id: 'list-1', name: 'Common Medical Procedures', items: ['Appendectomy', 'Cholecystectomy', 'Laparoscopy'], sorting: 'ASC', isCaseSensitive: false },
         { id: 'list-2', name: 'Hospital Units', items: ['ICU', 'Emergency', 'Radiology', 'Pediatrics'], sorting: 'ASC', isCaseSensitive: false }
       ],
+      notifications: [],
     };
 
     if (typeof window !== 'undefined') {
@@ -151,6 +154,7 @@ class Store {
           this.users = parsed.users ?? defaults.users;
           this.departments = parsed.departments ?? defaults.departments;
           this.globalLists = parsed.globalLists ?? defaults.globalLists;
+          this.notifications = parsed.notifications ?? defaults.notifications;
 
           // Backfill passwordHash for any legacy users that don't have one
           let needsPersist = false;
@@ -173,6 +177,7 @@ class Store {
     this.users = defaults.users;
     this.departments = defaults.departments;
     this.globalLists = defaults.globalLists;
+    this.notifications = defaults.notifications;
   }
 
   private persist() {
@@ -184,6 +189,7 @@ class Store {
           users: this.users,
           departments: this.departments,
           globalLists: this.globalLists,
+          notifications: this.notifications,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch (e) {
@@ -230,13 +236,47 @@ class Store {
   getSubmissions() { return this.submissions; }
   addSubmission(submission: FormSubmission) {
     this.submissions.push(submission);
+    
+    // Create notification for managers
+    const template = this.templates.find(t => t.id === submission.templateId);
+    const notification: AppNotification = {
+      id: uuidv4(),
+      type: 'PENDING_APPROVAL',
+      submissionId: submission.id,
+      targetDepartmentId: submission.departmentId,
+      targetGroupId: submission.groupId,
+      message: `New assessment "${template?.title || 'Form'}" submitted by ${submission.trainerName}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    this.notifications.unshift(notification);
+    
     this.persist();
   }
   updateSubmission(submission: FormSubmission) {
     const index = this.submissions.findIndex(s => s.id === submission.id);
     if (index !== -1) {
       this.submissions[index] = submission;
+      
+      // If approved/rejected, clear the notification
+      if (submission.status !== 'PENDING') {
+        this.notifications = this.notifications.filter(n => n.submissionId !== submission.id);
+      }
     }
+    this.persist();
+  }
+
+  // ── Notifications ────────────────────────────────────────────────────────────
+  getNotifications() { return this.notifications; }
+  markNotificationRead(id: string) {
+    const n = this.notifications.find(notif => notif.id === id);
+    if (n) {
+      n.read = true;
+      this.persist();
+    }
+  }
+  clearNotifications() {
+    this.notifications = [];
     this.persist();
   }
 

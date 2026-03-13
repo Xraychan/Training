@@ -131,6 +131,8 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
       templateId: template.id,
       trainerId: user.id,
       trainerName: user.name,
+      departmentId: user.departmentId || '',
+      groupId: user.groupId || '',
       submittedAt: new Date().toISOString(),
       status: 'PENDING',
       answers,
@@ -174,7 +176,18 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
           </div>
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Department</p>
-            <p className="font-bold text-[#141414]">Emergency Medicine</p>
+            <p className="font-bold text-[#141414]">
+              {store.getDepartments().find(d => d.id === user.departmentId)?.name || 'Not Assigned'}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Group</p>
+            <p className="font-bold text-[#141414]">
+              {user.departmentId 
+                ? store.getGroups(user.departmentId).find(g => g.id === user.groupId)?.name || 'Not Assigned'
+                : 'Not Assigned'
+              }
+            </p>
           </div>
         </div>
 

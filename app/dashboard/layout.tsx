@@ -20,6 +20,7 @@ import {
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserRole } from '@/lib/types';
+import NotificationBell from '@/components/notification-bell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth();
@@ -174,6 +175,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           
           <div className="flex items-center gap-4">
+            {(user.role === UserRole.MANAGER || user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) && (
+              <NotificationBell user={user} />
+            )}
             <div className="hidden md:flex flex-col items-end">
               <span className="text-xs font-bold text-[#141414]">
                 {mounted ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : '...'}

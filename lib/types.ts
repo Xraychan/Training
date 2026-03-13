@@ -116,10 +116,23 @@ export interface FormSubmission {
   templateId: string;
   trainerId: string;
   trainerName: string;
+  departmentId: string;
+  groupId: string;
   managerId?: string;
   managerName?: string;
   submittedAt: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   answers: Record<string, any>;
   summary?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'PENDING_APPROVAL' | 'SYSTEM';
+  submissionId?: string;
+  targetDepartmentId: string;
+  targetGroupId: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
 }
