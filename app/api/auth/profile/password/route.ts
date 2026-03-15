@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-production';
 
 export async function POST(request: Request) {
   try {

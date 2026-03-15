@@ -20,53 +20,6 @@ export async function hashPassword(password: string): Promise<string> {
 // SHA-256("Certify123!")
 const DEFAULT_PASS_HASH = '10e0315b85bc67e9405f6056aa704586f3c4d34479072fe5f3059c6e7b8f2a0e';
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-export const MOCK_DEPARTMENTS: Department[] = [
-  { 
-    id: 'dept-1', 
-    name: 'Emergency Medicine',
-    groups: [
-      { id: 'group-1', name: 'NURSING' },
-      { id: 'group-2', name: 'MEDICAL' }
-    ]
-  },
-  { 
-    id: 'dept-2', 
-    name: 'Cardiology',
-    groups: [
-      { id: 'group-3', name: 'ALLIED_HEALTH' }
-    ]
-  },
-];
-
-export const MOCK_USERS: User[] = [
-  {
-    id: 'user-1',
-    email: 'admin@example.com',
-    name: 'Super Admin',
-    role: UserRole.SUPER_ADMIN,
-    passwordHash: DEFAULT_PASS_HASH,
-  },
-  {
-    id: 'user-2',
-    email: 'manager@example.com',
-    name: 'Dr. Jane Smith',
-    role: UserRole.MANAGER,
-    departmentId: 'dept-1',
-    groupId: 'group-1',
-    passwordHash: DEFAULT_PASS_HASH,
-  },
-  {
-    id: 'user-3',
-    email: 'trainer@example.com',
-    name: 'John Doe',
-    role: UserRole.TRAINER,
-    departmentId: 'dept-1',
-    groupId: 'group-1',
-    passwordHash: DEFAULT_PASS_HASH,
-  },
-];
-
 // ─── Reset Token Store (server-side in-memory, module-level) ────────────────
 // Used by API routes since they can't access the browser's localStorage
 interface ResetToken {
@@ -135,8 +88,8 @@ class Store {
     const defaults: StoreData = {
       templates: [],
       submissions: [],
-      users: [...MOCK_USERS],
-      departments: [...MOCK_DEPARTMENTS],
+      users: [],
+      departments: [],
       globalLists: [
         { id: 'list-1', name: 'Common Medical Procedures', items: ['Appendectomy', 'Cholecystectomy', 'Laparoscopy'], sorting: 'ASC', isCaseSensitive: false },
         { id: 'list-2', name: 'Hospital Units', items: ['ICU', 'Emergency', 'Radiology', 'Pediatrics'], sorting: 'ASC', isCaseSensitive: false },

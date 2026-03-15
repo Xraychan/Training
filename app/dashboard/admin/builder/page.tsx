@@ -24,26 +24,60 @@ import { format } from 'date-fns';
 export default function FormBuilderListPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [templates, setTemplates] = useState<FormTemplate[]>(() => store.getTemplates());
+  const [templates, setTemplates] = useState<FormTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const fetchTemplates = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/templates', { credentials: 'include' });
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (e) {
+      console.error('Failed to load templates', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user && ![UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(user.role)) {
       router.push('/dashboard');
+      return;
     }
+    fetchTemplates();
   }, [user, router]);
 
-  const handleDeleteTemplate = (id: string) => {
-    store.deleteTemplate(id);
-    setTemplates(prev => prev.filter(t => t.id !== id));
-    setConfirmDeleteId(null);
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      setConfirmDeleteId(null);
+    } catch (e) {
+      console.error('Delete failed', e);
+    }
   };
 
   const filteredTemplates = templates.filter(t => 
     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading templates...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

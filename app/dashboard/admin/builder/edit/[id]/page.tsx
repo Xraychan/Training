@@ -9,22 +9,46 @@ import { FormTemplate } from '@/lib/types';
 export default function EditFormPage() {
   const router = useRouter();
   const params = useParams();
-  const [template] = useState<FormTemplate | null>(() => {
-    const id = params.id as string;
-    return store.getTemplates().find(t => t.id === id) || null;
-  });
+  const [template, setTemplate] = useState<FormTemplate | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!template) {
-      router.push('/dashboard/admin/builder');
-    }
-  }, [template, router]);
+    const fetchTemplate = async () => {
+      try {
+        const res = await fetch('/api/templates', { credentials: 'include' });
+        const data = await res.json();
+        const id = params.id as string;
+        const found = (data.templates || []).find((t: FormTemplate) => t.id === id);
+        if (!found) {
+          router.push('/dashboard/admin/builder');
+          return;
+        }
+        setTemplate(found);
+      } catch (e) {
+        console.error('Failed to load template', e);
+        router.push('/dashboard/admin/builder');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTemplate();
+  }, [params.id, router]);
 
-  const handleSave = (updatedTemplate: FormTemplate) => {
-    store.updateTemplate(updatedTemplate);
-    router.push('/dashboard/admin/builder');
+  const handleSave = async (updatedTemplate: FormTemplate) => {
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTemplate),
+      });
+      if (!res.ok) throw new Error('Failed to update template');
+      router.push('/dashboard/admin/builder');
+    } catch (e) {
+      console.error('Update failed', e);
+    }
   };
 
+  if (isLoading) return <div className="flex items-center justify-center h-screen text-[#141414]/40 text-sm">Loading editor...</div>;
   if (!template) return null;
 
   return (

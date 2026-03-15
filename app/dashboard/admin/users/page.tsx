@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { store, hashPassword } from '@/lib/store';
-import { User, UserRole } from '@/lib/types';
+import { User, UserRole, Department } from '@/lib/types';
 import { 
   Users, 
   UserPlus, 
@@ -17,7 +17,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<User[]>(() => store.getUsers());
+  const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -35,7 +37,27 @@ export default function UserManagementPage() {
   const [showPw, setShowPw] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const departments = store.getDepartments();
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [uRes, dRes] = await Promise.all([
+        fetch('/api/users', { credentials: 'include' }),
+        fetch('/api/departments', { credentials: 'include' })
+      ]);
+      const uData = await uRes.json();
+      const dData = await dRes.json();
+      setUsers(uData.users || []);
+      setDepartments(dData.departments || []);
+    } catch (e) {
+      console.error('Failed to load data', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const selectedDept = departments.find(d => d.id === form.departmentId);
 
@@ -51,30 +73,53 @@ export default function UserManagementPage() {
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
     if (!form.email.trim()) { setFormError('Email is required.'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setFormError('Enter a valid email address.'); return; }
-    if (users.some(u => u.email.toLowerCase() === form.email.toLowerCase())) {
-      setFormError('A user with this email already exists.');
-      return;
-    }
     if (form.password && form.password.length < 8) { setFormError('Password must be at least 8 characters.'); return; }
+    
     isSubmittingRef.current = true;
-    const passwordHash = await hashPassword(form.password.trim() || 'Certify123!');
-    store.addUser({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      role: form.role,
-      departmentId: form.departmentId || undefined,
-      groupId: form.groupId || undefined,
-      passwordHash,
-    });
-    setUsers([...store.getUsers()]);
-    setIsModalOpen(false);
-    isSubmittingRef.current = false;
+    setFormError('');
+    
+    try {
+      const passwordHash = await hashPassword(form.password.trim() || 'Certify123!');
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          departmentId: form.departmentId || null,
+          groupId: form.groupId || null,
+          passwordHash,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create user');
+      }
+
+      await fetchData();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message);
+    } finally {
+      isSubmittingRef.current = false;
+    }
   };
 
-  const handleDelete = (id: string) => {
-    store.deleteUser(id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-    setConfirmDeleteId(null);
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Failed to delete user');
+      setUsers(prev => prev.filter(u => u.id !== id));
+      setConfirmDeleteId(null);
+    } catch (e) {
+      console.error('Delete failed', e);
+    }
   };
 
   const filteredUsers = users.filter(u => 
@@ -88,6 +133,15 @@ export default function UserManagementPage() {
     MANAGER: 'text-orange-700 bg-orange-50 border-orange-200',
     TRAINER: 'text-gray-600 bg-gray-50 border-gray-200',
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading user management...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -134,7 +188,7 @@ export default function UserManagementPage() {
             <AnimatePresence>
               {filteredUsers.map((u) => {
                 const dept = departments.find(d => d.id === u.departmentId);
-                const group = dept?.groups.find(g => g.id === u.groupId);
+                const group = dept?.groups.find((g: any) => g.id === u.groupId);
                 return (
                   <motion.tr
                     key={u.id}
@@ -301,7 +355,7 @@ export default function UserManagementPage() {
                         className="w-full p-3 bg-white border border-[#141414]/10 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F27D26]/20 focus:border-[#F27D26] text-sm"
                       >
                         <option value="">— No Group —</option>
-                        {selectedDept.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        {selectedDept.groups.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
                       </select>
                     </div>
                   )}

@@ -14,11 +14,32 @@ import { motion } from 'motion/react';
 
 export default function TrainerNewAssessmentPage() {
   const router = useRouter();
-  const [templates, setTemplates] = useState<FormTemplate[]>(() => store.getTemplates());
+  const [templates, setTemplates] = useState<FormTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Data is initialized in useState
+    const fetchTemplates = async () => {
+      try {
+        const res = await fetch('/api/templates', { credentials: 'include' });
+        const data = await res.json();
+        setTemplates(data.templates || []);
+      } catch (e) {
+        console.error('Failed to load templates', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTemplates();
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading assessments...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-production';
 
-// Helper: get current user from JWT cookie
 function getCurrentUser(req: NextRequest) {
   try {
     const token = req.cookies.get('auth_token')?.value;
@@ -16,138 +14,113 @@ function getCurrentUser(req: NextRequest) {
   }
 }
 
-// GET /api/users — list all users (SUPER_ADMIN / ADMIN only)
+// GET /api/submissions - list submissions (MANAGER sees their dept/group, ADMIN sees all)
 export async function GET(req: NextRequest) {
   const currentUser = getCurrentUser(req);
-  if (!currentUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!['SUPER_ADMIN', 'ADMIN'].includes(currentUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const where: any = {};
+  if (currentUser.role === 'MANAGER') {
+    // Managers only see submissions for their department/group
+    const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+    if (user?.departmentId) where.departmentId = user.departmentId;
+    if (user?.groupId) where.groupId = user.groupId;
+  } else if (currentUser.role === 'TRAINER') {
+    // Trainers only see their own submissions
+    where.trainerId = currentUser.userId;
   }
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      departmentId: true,
-      groupId: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
+  const submissions = await prisma.formSubmission.findMany({
+    where,
+    include: { template: { select: { title: true } } },
+    orderBy: { submittedAt: 'desc' },
   });
 
-  return NextResponse.json({ users });
+  return NextResponse.json({ submissions });
 }
 
-// POST /api/users — create a new user (SUPER_ADMIN / ADMIN only)
+// POST /api/submissions - create a submission
 export async function POST(req: NextRequest) {
   const currentUser = getCurrentUser(req);
-  if (!currentUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!['SUPER_ADMIN', 'ADMIN'].includes(currentUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { email, name, role, password, departmentId, groupId } = await req.json();
+  const body = await req.json();
+  const { 
+    templateId, 
+    answers, 
+    departmentId, 
+    groupId, 
+    traineeName = '', 
+    traineeGroup = '' 
+  } = body;
 
-  if (!email || !name || !role || !password) {
-    return NextResponse.json({ error: 'email, name, role and password are required' }, { status: 400 });
-  }
-
-  // Check if email already exists
-  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (existing) {
-    return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 });
+  if (!templateId || !answers || !departmentId || !groupId) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  try {
+    const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+    
+    const submission = await prisma.formSubmission.create({
+      data: {
+        templateId,
+        trainerId: currentUser.userId,
+        trainerName: user?.name || 'Unknown Trainer',
+        departmentId,
+        groupId,
+        status: 'PENDING',
+        traineeName,
+        traineeGroup,
+        answers: JSON.stringify(answers),
+      },
+    });
 
-  const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase().trim(),
-      name,
-      role,
-      passwordHash,
-      departmentId: departmentId || null,
-      groupId: groupId || null,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      departmentId: true,
-      groupId: true,
-      createdAt: true,
-    },
-  });
+    // Create notification for MANAGERS in the matching Department AND Group
+    await prisma.appNotification.create({
+      data: {
+        type: 'PENDING_APPROVAL',
+        submissionId: submission.id,
+        targetDepartmentId: departmentId,
+        targetGroupId: groupId, // Simplified: using the submission's group
+        message: `New assessment submitted by ${user?.name || 'Trainer'}`,
+      }
+    });
 
-  return NextResponse.json({ user }, { status: 201 });
+    return NextResponse.json({ submission }, { status: 201 });
+  } catch (e) {
+    console.error('Submission error:', e);
+    return NextResponse.json({ error: 'Failed to submit' }, { status: 500 });
+  }
 }
 
-// PATCH /api/users — update a user
+// PATCH /api/submissions - update submission (e.g., approval/rejection)
 export async function PATCH(req: NextRequest) {
   const currentUser = getCurrentUser(req);
-  if (!currentUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id, status, summary } = await req.json();
+
+  if (!id || !status) return NextResponse.json({ error: 'id and status are required' }, { status: 400 });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+    const submission = await prisma.formSubmission.update({
+      where: { id },
+      data: {
+        status,
+        summary,
+        managerId: currentUser.userId,
+        managerName: user?.name,
+      },
+    });
+
+    // If approved/rejected, we might want to notify the trainer, but skipping for now or clearing notifications
+    if (status !== 'PENDING') {
+      await prisma.appNotification.deleteMany({ where: { submissionId: id } });
+    }
+
+    return NextResponse.json({ submission });
+  } catch (e) {
+    return NextResponse.json({ error: 'Failed to update submission' }, { status: 500 });
   }
-  if (!['SUPER_ADMIN', 'ADMIN'].includes(currentUser.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const { id, name, role, departmentId, groupId, password } = await req.json();
-
-  if (!id) {
-    return NextResponse.json({ error: 'User id is required' }, { status: 400 });
-  }
-
-  const updateData: Record<string, unknown> = {};
-  if (name) updateData.name = name;
-  if (role) updateData.role = role;
-  if (departmentId !== undefined) updateData.departmentId = departmentId || null;
-  if (groupId !== undefined) updateData.groupId = groupId || null;
-  if (password) updateData.passwordHash = await bcrypt.hash(password, 12);
-
-  const user = await prisma.user.update({
-    where: { id },
-    data: updateData,
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      departmentId: true,
-      groupId: true,
-    },
-  });
-
-  return NextResponse.json({ user });
-}
-
-// DELETE /api/users — delete a user (SUPER_ADMIN only)
-export async function DELETE(req: NextRequest) {
-  const currentUser = getCurrentUser(req);
-  if (!currentUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (currentUser.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const { id } = await req.json();
-  if (!id) {
-    return NextResponse.json({ error: 'User id is required' }, { status: 400 });
-  }
-
-  // Prevent deleting yourself
-  if (id === currentUser.userId) {
-    return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
-  }
-
-  await prisma.user.delete({ where: { id } });
-  return NextResponse.json({ success: true });
 }

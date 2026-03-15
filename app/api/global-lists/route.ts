@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-production';
 
 function getCurrentUser(req: NextRequest) {
   try {
