@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    if (!user.isActive) {
+      return NextResponse.json({ error: 'Account is inactive. Please contact your administrator.' }, { status: 401 });
+    }
+
     let passwordValid = false;
 
     if (isSha256Hash(user.passwordHash)) {

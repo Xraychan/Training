@@ -104,3 +104,34 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
   }
 }
+
+// PATCH /api/users - toggle isActive (SUPER_ADMIN / ADMIN only)
+export async function PATCH(req: NextRequest) {
+  const currentUser = getCurrentUser(req);
+  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!['SUPER_ADMIN', 'ADMIN'].includes(currentUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id, isActive } = await req.json();
+  if (!id || typeof isActive !== 'boolean') {
+    return NextResponse.json({ error: 'ID and isActive (boolean) are required' }, { status: 400 });
+  }
+
+  // Prevent self-deactivation
+  if (id === currentUser.userId && isActive === false) {
+    return NextResponse.json({ error: 'You cannot deactivate your own account' }, { status: 400 });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { isActive },
+    });
+    const { passwordHash: _, ...safeUser } = user;
+    return NextResponse.json({ user: safeUser });
+  } catch (e) {
+    console.error('User update error:', e);
+    return NextResponse.json({ error: 'Failed to update user status' }, { status: 500 });
+  }
+}

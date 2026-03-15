@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
   const { name } = await req.json();
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
 
-  const dept = await prisma.department.create({ data: { name } });
+  const upperName = name.trim().toUpperCase();
+  const dept = await prisma.department.create({ data: { name: upperName } });
   return NextResponse.json({ department: { ...dept, groups: [] } }, { status: 201 });
 }
 
@@ -60,9 +61,10 @@ export async function PUT(req: NextRequest) {
   const { id, name } = await req.json();
   if (!id || !name) return NextResponse.json({ error: 'id and name are required' }, { status: 400 });
 
+  const upperName = name.trim().toUpperCase();
   const dept = await prisma.department.update({
     where: { id },
-    data: { name },
+    data: { name: upperName },
     include: { groups: true }
   });
   return NextResponse.json({ department: dept });

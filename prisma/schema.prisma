@@ -18,6 +18,7 @@ model User {
   departmentId   String?
   groupId        String?
   passwordHash   String?
+  isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

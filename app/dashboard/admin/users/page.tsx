@@ -126,6 +126,24 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isActive: !currentStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update status');
+      }
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, isActive: !currentStatus } : u));
+    } catch (e: any) {
+      console.error('Status update failed', e);
+      alert(e.message);
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -185,6 +203,7 @@ export default function UserManagementPage() {
               <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Role</th>
               <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Group</th>
               <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Department</th>
+              <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Status</th>
               <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 text-right">Actions</th>
             </tr>
           </thead>
@@ -231,6 +250,20 @@ export default function UserManagementPage() {
                         <Building size={12} />
                         {dept?.name || 'Global'}
                       </div>
+                    </td>
+                    <td className="p-4">
+                      <button
+                        onClick={() => handleToggleStatus(u.id, u.isActive)}
+                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                          u.isActive ? 'bg-[#F27D26]' : 'bg-[#141414]/10'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            u.isActive ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">

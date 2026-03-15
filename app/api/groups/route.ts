@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
   const { departmentId, name } = await req.json();
   if (!departmentId || !name) return NextResponse.json({ error: 'departmentId and name are required' }, { status: 400 });
 
+  const upperName = name.trim().toUpperCase();
   try {
     const group = await prisma.group.create({
       data: {
-        name,
+        name: upperName,
         departmentId
       }
     });
@@ -52,10 +53,11 @@ export async function PUT(req: NextRequest) {
   const { id, name } = await req.json();
   if (!id || !name) return NextResponse.json({ error: 'id and name are required' }, { status: 400 });
 
+  const upperName = name.trim().toUpperCase();
   try {
     const group = await prisma.group.update({
       where: { id },
-      data: { name }
+      data: { name: upperName }
     });
     return NextResponse.json({ group });
   } catch (e) {

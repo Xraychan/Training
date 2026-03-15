@@ -33,6 +33,7 @@ export interface User {
   departmentId?: string;
   groupId?: string;
   passwordHash?: string; // SHA-256 hex digest
+  isActive: boolean;
 }
 
 export enum QuestionType {
