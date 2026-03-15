@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     traineeGroup = '' 
   } = body;
 
-  if (!templateId || !answers || !departmentId || !groupId) {
+  if (!templateId || !answers) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
         templateId,
         trainerId: currentUser.userId,
         trainerName: user?.name || 'Unknown Trainer',
-        departmentId,
-        groupId,
+        departmentId: departmentId || null,
+        groupId: groupId || null,
         status: 'PENDING',
         traineeName,
         traineeGroup,

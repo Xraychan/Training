@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Shield, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import ImageCaptcha from '@/components/ImageCaptcha';
-import { store } from '@/lib/store';
 
 type Step = 'email' | 'captcha' | 'done';
 
@@ -23,8 +22,6 @@ export default function ForgotPasswordPage() {
     setEmailError('');
     if (!email.trim()) { setEmailError('Email is required.'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setEmailError('Enter a valid email address.'); return; }
-    const user = store.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user) { setEmailError('No account found with that email address.'); return; }
     setStep('captcha');
   };
 

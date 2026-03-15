@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Hash the new password with bcrypt
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     // 3. Update the user in the database
     const user = await prisma.user.update({

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { store } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole, FormSubmission, FormTemplate, User } from '@/lib/types';
 import { motion } from 'motion/react';
@@ -26,12 +25,37 @@ export default function DashboardPage() {
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [templates, setTemplates] = useState<FormTemplate[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setSubmissions(store.getSubmissions());
-    setTemplates(store.getTemplates());
-    setAllUsers(store.getUsers());
-  }, []);
+    const fetchData = async () => {
+      try {
+        const fetches = [
+          fetch('/api/submissions').then(r => r.json()),
+          fetch('/api/templates').then(r => r.json()),
+        ];
+
+        // Only admins can fetch the full user list
+        if (user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.ADMIN) {
+          fetches.push(fetch('/api/users').then(r => r.json()));
+        }
+
+        const results = await Promise.all(fetches);
+        const subData = results[0];
+        const tplData = results[1];
+        const userData = results[2];
+
+        setSubmissions(subData.submissions || []);
+        setTemplates(tplData.templates || []);
+        if (userData) setAllUsers(userData.users || []);
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [user]);
 
   const pendingCount = submissions.filter(s => s.status === 'PENDING').length;
   const completedCount = submissions.filter(s => s.status === 'APPROVED').length;
@@ -69,6 +93,15 @@ export default function DashboardPage() {
       href: '/dashboard/admin/users'
     }] : [])
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 animate-pulse">Gathering intelligence...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

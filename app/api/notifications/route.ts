@@ -27,11 +27,15 @@ export async function GET(req: NextRequest) {
     });
   } else {
     const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
+    const where: any = {
+      targetDepartmentId: user?.departmentId || null,
+    };
+    if (user?.groupId) {
+      where.targetGroupId = user.groupId;
+    }
+    
     notifications = await prisma.appNotification.findMany({
-      where: {
-        targetDepartmentId: user?.departmentId ?? '',
-        targetGroupId: user?.groupId ?? '',
-      },
+      where,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -75,12 +79,13 @@ export async function DELETE(req: NextRequest) {
     await prisma.appNotification.deleteMany({});
   } else {
     const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-    await prisma.appNotification.deleteMany({
-      where: {
-        targetDepartmentId: user?.departmentId ?? '',
-        targetGroupId: user?.groupId ?? '',
-      },
-    });
+    const where: any = {
+      targetDepartmentId: user?.departmentId || null,
+    };
+    if (user?.groupId) {
+      where.targetGroupId = user.groupId;
+    }
+    await prisma.appNotification.deleteMany({ where });
   }
 
   return NextResponse.json({ success: true });
