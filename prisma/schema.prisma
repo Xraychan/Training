@@ -101,3 +101,11 @@ model Notice {
   updatedBy String
   updatedAt DateTime @default(now())
 }
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
