@@ -20,18 +20,39 @@ import { useRouter } from 'next/navigation';
 export default function ManagerQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [templates] = useState<Record<string, FormTemplate>>(() => {
-    const templateMap: Record<string, FormTemplate> = {};
-    store.getTemplates().forEach(t => { templateMap[t.id] = t; });
-    return templateMap;
-  });
+  const [templates, setTemplates] = useState<Record<string, FormTemplate>>({});
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [completedSearchQuery, setCompletedSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [subRes, tempRes] = await Promise.all([
+        fetch('/api/submissions'),
+        fetch('/api/templates')
+      ]);
+      const subData = await subRes.json();
+      const tempData = await tempRes.json();
+      
+      setSubmissions(subData.submissions || []);
+      
+      const tempMap: Record<string, FormTemplate> = {};
+      (tempData.templates || []).forEach((t: FormTemplate) => {
+        tempMap[t.id] = t;
+      });
+      setTemplates(tempMap);
+    } catch (err) {
+      console.error('Failed to load queue', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setSubmissions(store.getSubmissions());
+    fetchData();
   }, []);
 
   const pendingSubmissions = submissions
@@ -66,26 +87,38 @@ export default function ManagerQueuePage() {
     }
   };
 
-  const handleBulkApprove = () => {
+  const handleBulkApprove = async () => {
     if (!user) return;
     
-    selectedIds.forEach(id => {
+    const promises = Array.from(selectedIds).map(id => {
       const submission = submissions.find(s => s.id === id);
       if (submission && submission.status === 'PENDING') {
-        const updated: FormSubmission = {
-          ...submission,
-          status: 'APPROVED',
-          managerId: user.id,
-          managerName: user.name,
-          summary: 'Bulk approved from queue'
-        };
-        store.updateSubmission(updated);
+        return fetch('/api/submissions', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            status: 'APPROVED',
+            summary: 'Bulk approved from queue'
+          })
+        });
       }
+      return Promise.resolve();
     });
 
-    setSubmissions([...store.getSubmissions()]);
+    await Promise.all(promises);
+    await fetchData();
     setSelectedIds(new Set());
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading review queue...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

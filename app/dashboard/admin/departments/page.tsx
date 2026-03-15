@@ -19,7 +19,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function DepartmentsPage() {
-  const [departments, setDepartments] = useState<Department[]>(() => store.getDepartments());
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
   
   // Modal states
@@ -34,9 +35,22 @@ export default function DepartmentsPage() {
   // Form state
   const [inputName, setInputName] = useState('');
 
-  const refreshData = () => {
-    setDepartments([...store.getDepartments()]);
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/departments');
+      const data = await res.json();
+      setDepartments(data.departments || []);
+    } catch (err) {
+      console.error('Failed to load departments', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    refreshData();
+  }, []);
 
   const toggleDept = (id: string) => {
     setExpandedDepts(prev => ({ ...prev, [id]: !prev[id] }));
@@ -57,26 +71,45 @@ export default function DepartmentsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputName.trim()) return;
 
-    if (activeType === 'DEPT') {
-      if (editingItem) {
-        store.updateDepartment(editingItem.id, inputName);
+    try {
+      if (activeType === 'DEPT') {
+        if (editingItem) {
+          await fetch('/api/departments', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingItem.id, name: inputName.trim() })
+          });
+        } else {
+          await fetch('/api/departments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: inputName.trim() })
+          });
+        }
       } else {
-        store.addDepartment(inputName);
+        if (editingItem?.id) {
+          await fetch('/api/groups', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingItem.id, name: inputName.trim() })
+          });
+        } else {
+          await fetch('/api/groups', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ departmentId: editingItem!.deptId!, name: inputName.trim() })
+          });
+        }
       }
-    } else {
-      if (editingItem?.id) {
-        store.updateGroup(editingItem.deptId!, editingItem.id, inputName);
-      } else {
-        store.addGroup(editingItem!.deptId!, inputName);
-      }
+      setIsModalOpen(false);
+      refreshData();
+    } catch (err) {
+      console.error('Save failed', err);
     }
-    
-    setIsModalOpen(false);
-    refreshData();
   };
 
   // Delete Handlers
@@ -85,19 +118,39 @@ export default function DepartmentsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deletingItem) return;
 
-    if (deletingItem.type === 'DEPT') {
-      store.deleteDepartment(deletingItem.id);
-    } else {
-      store.deleteGroup(deletingItem.deptId!, deletingItem.id);
+    try {
+      if (deletingItem.type === 'DEPT') {
+        await fetch('/api/departments', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: deletingItem.id })
+        });
+      } else {
+        await fetch('/api/groups', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: deletingItem.id })
+        });
+      }
+      setIsDeleteModalOpen(false);
+      setDeletingItem(null);
+      refreshData();
+    } catch (err) {
+      console.error('Delete failed', err);
     }
-
-    setIsDeleteModalOpen(false);
-    setDeletingItem(null);
-    refreshData();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading organization structure...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl space-y-12 pb-20">

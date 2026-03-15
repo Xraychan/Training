@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
   if (currentUser.role === 'MANAGER') {
     // Managers only see submissions for their department/group
     const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
-    if (user?.departmentId) where.departmentId = user.departmentId;
-    if (user?.groupId) where.groupId = user.groupId;
+    if (!user?.departmentId) {
+      return NextResponse.json({ submissions: [] });
+    }
+    where.departmentId = user.departmentId;
+    if (user.groupId) where.groupId = user.groupId;
   } else if (currentUser.role === 'TRAINER') {
     // Trainers only see their own submissions
     where.trainerId = currentUser.userId;

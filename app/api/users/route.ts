@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-production';
 
@@ -37,28 +38,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { name, email, role, departmentId, groupId, passwordHash } = await req.json();
+  const { name, email, role, departmentId, groupId, password } = await req.json();
 
   if (!name || !email || !role) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
   try {
+    const salt = await bcrypt.genSalt(12);
+    const hash = await bcrypt.hash(password || 'Certify123!', salt);
+
     const user = await prisma.user.create({
       data: {
         name,
-        email: email.toLowerCase(),
+        email: email.toLowerCase().trim(),
         role,
         departmentId: departmentId || null,
         groupId: groupId || null,
-        passwordHash,
+        passwordHash: hash,
       },
     });
-    return NextResponse.json({ user }, { status: 201 });
+
+    const { passwordHash: _, ...safeUser } = user;
+    return NextResponse.json({ user: safeUser }, { status: 201 });
   } catch (e: any) {
     if (e.code === 'P2002') {
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
     }
+    console.error('User creation error:', e);
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
   }
 }

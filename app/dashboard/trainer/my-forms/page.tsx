@@ -17,16 +17,35 @@ import { format } from 'date-fns';
 
 export default function MyFormsPage() {
   const { user } = useAuth();
-  
-  const submissions = useMemo(() => {
-    if (!user) return [];
-    return store.getSubmissions().filter(s => s.trainerId === user.id);
-  }, [user]);
-  
-  const templates = useMemo(() => {
-    const templateMap: Record<string, FormTemplate> = {};
-    store.getTemplates().forEach(t => { templateMap[t.id] = t; });
-    return templateMap;
+  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [templates, setTemplates] = useState<Record<string, FormTemplate>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [subRes, tempRes] = await Promise.all([
+          fetch('/api/submissions'),
+          fetch('/api/templates')
+        ]);
+        const subData = await subRes.json();
+        const tempData = await tempRes.json();
+        
+        setSubmissions(subData.submissions || []);
+        
+        const tempMap: Record<string, FormTemplate> = {};
+        (tempData.templates || []).forEach((t: FormTemplate) => {
+          tempMap[t.id] = t;
+        });
+        setTemplates(tempMap);
+      } catch (err) {
+        console.error('Failed to load submissions', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -95,6 +114,15 @@ export default function MyFormsPage() {
     printWindow.document.close();
     printWindow.print();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-[#F27D26] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-[#141414]/40 animate-pulse">Loading assessments...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

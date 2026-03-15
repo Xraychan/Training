@@ -79,7 +79,6 @@ export default function UserManagementPage() {
     setFormError('');
     
     try {
-      const passwordHash = await hashPassword(form.password.trim() || 'Certify123!');
       const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,7 +88,7 @@ export default function UserManagementPage() {
           role: form.role,
           departmentId: form.departmentId || null,
           groupId: form.groupId || null,
-          passwordHash,
+          password: form.password.trim() || 'Certify123!',
         }),
       });
 

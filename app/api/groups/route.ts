@@ -14,27 +14,7 @@ function getCurrentUser(req: NextRequest) {
   }
 }
 
-// GET /api/departments — returns departments with their groups
-export async function GET(req: NextRequest) {
-  const currentUser = getCurrentUser(req);
-  if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const departments = await prisma.department.findMany({
-    include: { groups: true },
-    orderBy: { name: 'asc' },
-  });
-
-  // Map to match the Department type shape used in the frontend
-  const mapped = departments.map(d => ({
-    id: d.id,
-    name: d.name,
-    groups: d.groups.map(g => ({ id: g.id, name: g.name })),
-  }));
-
-  return NextResponse.json({ departments: mapped });
-}
-
-// POST /api/departments — create department (SUPER_ADMIN / ADMIN only)
+// POST /api/groups — create group (SUPER_ADMIN / ADMIN only)
 export async function POST(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,14 +22,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { name } = await req.json();
-  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  const { departmentId, name } = await req.json();
+  if (!departmentId || !name) return NextResponse.json({ error: 'departmentId and name are required' }, { status: 400 });
 
-  const dept = await prisma.department.create({ data: { name } });
-  return NextResponse.json({ department: { ...dept, groups: [] } }, { status: 201 });
+  try {
+    const group = await prisma.group.create({
+      data: {
+        name,
+        departmentId
+      }
+    });
+    return NextResponse.json({ group }, { status: 201 });
+  } catch (e: any) {
+    if (e.code === 'P2002') {
+      return NextResponse.json({ error: 'Group name already exists in this department' }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
+  }
 }
 
-// PUT /api/departments — update department (SUPER_ADMIN / ADMIN only)
+// PUT /api/groups — update group (SUPER_ADMIN / ADMIN only)
 export async function PUT(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,15 +52,18 @@ export async function PUT(req: NextRequest) {
   const { id, name } = await req.json();
   if (!id || !name) return NextResponse.json({ error: 'id and name are required' }, { status: 400 });
 
-  const dept = await prisma.department.update({
-    where: { id },
-    data: { name },
-    include: { groups: true }
-  });
-  return NextResponse.json({ department: dept });
+  try {
+    const group = await prisma.group.update({
+      where: { id },
+      data: { name }
+    });
+    return NextResponse.json({ group });
+  } catch (e) {
+    return NextResponse.json({ error: 'Failed to update group' }, { status: 500 });
+  }
 }
 
-// DELETE /api/departments — delete department (SUPER_ADMIN / ADMIN only)
+// DELETE /api/groups — delete group (SUPER_ADMIN / ADMIN only)
 export async function DELETE(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,12 +75,9 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
   try {
-    // Delete associated groups first if needed, though Prisma might handle it if cascading is set
-    // In our schema, Group has fields departmentId. We should delete groups first.
-    await prisma.group.deleteMany({ where: { departmentId: id } });
-    await prisma.department.delete({ where: { id } });
+    await prisma.group.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (e) {
-    return NextResponse.json({ error: 'Failed to delete department' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete group' }, { status: 500 });
   }
 }
