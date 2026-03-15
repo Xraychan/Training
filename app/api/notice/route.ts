@@ -21,8 +21,14 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  let content = '';
+  let updatedBy = '';
+
   try {
-    const { content, updatedBy } = await request.json();
+    const json = await request.json();
+    content = json.content;
+    updatedBy = json.updatedBy;
+    
     const notice = await prisma.notice.findFirst({
       orderBy: { updatedAt: 'desc' }
     });
