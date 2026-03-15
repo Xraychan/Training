@@ -23,7 +23,14 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return NextResponse.json({ templates });
+  // Map 'structure' to 'pages' for the frontend
+  const mappedTemplates = templates.map(t => ({
+    ...t,
+    pages: t.structure ? JSON.parse(t.structure) : [],
+    themeId: t.theme || 'default',
+  }));
+
+  return NextResponse.json({ templates: mappedTemplates });
 }
 
 // POST /api/templates - create or update a template (SUPER_ADMIN / ADMIN only)
@@ -34,33 +41,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { id, title, description, structure, theme } = await req.json();
+  const body = await req.json();
+  const { id, title, description, pages, themeId } = body;
 
-  if (!title || !structure) {
-    return NextResponse.json({ error: 'Title and structure are required' }, { status: 400 });
+  if (!title || !pages) {
+    return NextResponse.json({ error: 'Title and pages are required' }, { status: 400 });
   }
 
   try {
+    const data = {
+      title,
+      description,
+      structure: JSON.stringify(pages),
+      theme: themeId || 'default',
+    };
+
     if (id) {
-      // Update
-      const template = await prisma.formTemplate.update({
-        where: { id },
-        data: {
-          title,
-          description,
-          structure,
-          theme,
-        },
-      });
-      return NextResponse.json({ template });
+      // Check if it exists first
+      const existing = await prisma.formTemplate.findUnique({ where: { id } });
+      
+      if (existing) {
+        const template = await prisma.formTemplate.update({
+          where: { id },
+          data,
+        });
+        return NextResponse.json({ template });
+      } else {
+        // Create with the provided ID (e.g. from frontend uuidv4)
+        const template = await prisma.formTemplate.create({
+          data: {
+            ...data,
+            id,
+            createdBy: currentUser.userId,
+          },
+        });
+        return NextResponse.json({ template }, { status: 201 });
+      }
     } else {
-      // Create
+      // Create with auto-generated ID
       const template = await prisma.formTemplate.create({
         data: {
-          title,
-          description,
-          structure,
-          theme,
+          ...data,
           createdBy: currentUser.userId,
         },
       });
