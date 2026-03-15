@@ -152,21 +152,31 @@ export async function GET(request: Request) {
       ? new Date(Date.now() + tokenData.expires_in * 1000)
       : null;
 
-    await prisma.oAuthToken.upsert({
-      where: { userId_provider: { userId, provider } },
-      update: {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt,
-      },
-      create: {
-        userId,
-        provider,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        expiresAt,
-      },
+    // Check if token already exists for this user+provider
+    const existing = await prisma.oAuthToken.findFirst({
+      where: { userId: userId!, provider },
     });
+
+    if (existing) {
+      await prisma.oAuthToken.update({
+        where: { id: existing.id },
+        data: {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token || null,
+          expiresAt,
+        },
+      });
+    } else {
+      await prisma.oAuthToken.create({
+        data: {
+          userId: userId!,
+          provider,
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token || null,
+          expiresAt,
+        },
+      });
+    }
 
     return successPage(provider);
   } catch (err) {
