@@ -32,43 +32,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    const foundUser = store.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!foundUser) {
-      return { success: false, error: 'No account found with that email address.' };
-    }
-
-    const inputHash = await hashPassword(password);
-    if (foundUser.passwordHash && foundUser.passwordHash !== inputHash) {
-      return { success: false, error: 'Incorrect password. Please try again.' };
-    }
-
-    // If user has no password set yet (legacy), allow login and set hash
-    if (!foundUser.passwordHash) {
-      store.updateUserPassword(foundUser.id, inputHash);
-    }
-
-    const cleanUser: User = {
-      id: String(foundUser.id),
-      email: String(foundUser.email),
-      name: String(foundUser.name),
-      role: foundUser.role as UserRole,
-      groupId: foundUser.groupId ? String(foundUser.groupId) : undefined,
-      departmentId: foundUser.departmentId ? String(foundUser.departmentId) : undefined,
-    };
-
-    setUser(cleanUser);
     try {
-      localStorage.setItem('auth_user', JSON.stringify(cleanUser));
-    } catch (e) {
-      console.error('Failed to persist auth state', e);
-    }
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    return { success: true };
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Login failed' };
+      }
+
+      setUser(data.user);
+      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      return { success: true };
+    } catch (e) {
+      console.error('Login attempt failed', e);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     localStorage.removeItem('auth_user');
+    // For a complete logout, we should also clear the cookie on the server
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   };
 
   return (
