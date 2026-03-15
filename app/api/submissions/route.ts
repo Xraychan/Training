@@ -57,6 +57,9 @@ export async function POST(req: NextRequest) {
     traineeGroup = '' 
   } = body;
 
+  console.log('Incoming submission body:', body);
+  console.log('Current user from JWT:', currentUser);
+
   if (!templateId || !answers) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
@@ -64,6 +67,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await prisma.user.findUnique({ where: { id: currentUser.userId } });
     
+    console.log('Creating submission in DB...');
     const submission = await prisma.formSubmission.create({
       data: {
         templateId,
@@ -77,22 +81,25 @@ export async function POST(req: NextRequest) {
         answers: JSON.stringify(answers),
       },
     });
+    console.log('Submission created successfully:', submission.id);
 
     // Create notification for MANAGERS in the matching Department AND Group
+    console.log('Creating notification for managers...');
     await prisma.appNotification.create({
       data: {
         type: 'PENDING_APPROVAL',
         submissionId: submission.id,
-        targetDepartmentId: departmentId,
-        targetGroupId: groupId, // Simplified: using the submission's group
+        targetDepartmentId: departmentId || null,
+        targetGroupId: groupId || null, // Simplified: using the submission's group
         message: `New assessment submitted by ${user?.name || 'Trainer'}`,
       }
     });
+    console.log('Notification created successfully.');
 
     return NextResponse.json({ submission }, { status: 201 });
-  } catch (e) {
-    console.error('Submission error:', e);
-    return NextResponse.json({ error: 'Failed to submit' }, { status: 500 });
+  } catch (e: any) {
+    console.error('Submission error (DETAILED):', e);
+    return NextResponse.json({ error: 'Failed to submit', details: e.message }, { status: 500 });
   }
 }
 
