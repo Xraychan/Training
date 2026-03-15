@@ -1,15 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { store } from '@/lib/store';
 import { FormSubmission, FormTemplate, QuestionType } from '@/lib/types';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  ArrowLeft, 
-  Printer, 
+import {
+  CheckCircle2,
+  XCircle,
+  ArrowLeft,
+  Printer,
   Download,
   MessageSquare,
   User as UserIcon,
@@ -17,7 +16,6 @@ import {
   FileText,
   Users
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -26,61 +24,75 @@ export default function ReviewSubmissionPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuth();
-  
-  const [submission] = useState<FormSubmission | null>(() => {
-    const id = params.id as string;
-    return store.getSubmissions().find(s => s.id === id) || null;
-  });
-  
-  const [template] = useState<FormTemplate | null>(() => {
-    if (!submission) return null;
-    return store.getTemplates().find(t => t.id === submission.templateId) || null;
-  });
 
+  const [submission, setSubmission] = useState<FormSubmission | null>(null);
+  const [template, setTemplate] = useState<FormTemplate | null>(null);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [comment, setComment] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!submission || !template) {
-      router.push('/dashboard/manager/queue');
-    }
-  }, [submission, template, router]);
+    const fetchData = async () => {
+      try {
+        const id = params.id as string;
+        const [subRes, deptRes] = await Promise.all([
+          fetch('/api/submissions'),
+          fetch('/api/departments'),
+        ]);
+        const subData = await subRes.json();
+        const deptData = await deptRes.json();
 
-  const handleAction = (status: 'APPROVED' | 'REJECTED') => {
-    if (!submission || !user) return;
-    
-    const updated: FormSubmission = {
-      ...submission,
-      status,
-      managerId: user.id,
-      managerName: user.name,
-      summary: comment
+        const found: FormSubmission = (subData.submissions || []).find((s: FormSubmission) => s.id === id);
+        if (!found) { router.push('/dashboard/manager/queue'); return; }
+        setSubmission(found);
+        setDepartments(deptData.departments || []);
+
+        const tplRes = await fetch('/api/templates');
+        const tplData = await tplRes.json();
+        const foundTpl = (tplData.templates || []).find((t: FormTemplate) => t.id === found.templateId);
+        if (!foundTpl) { router.push('/dashboard/manager/queue'); return; }
+        setTemplate(foundTpl);
+      } catch (e) {
+        console.error('Failed to load review', e);
+        router.push('/dashboard/manager/queue');
+      } finally {
+        setIsLoading(false);
+      }
     };
-    
-    store.updateSubmission(updated);
-    router.push('/dashboard/manager/queue');
+    fetchData();
+  }, [params.id, router]);
+
+  const getDeptName = (deptId: string) => departments.find(d => d.id === deptId)?.name || 'Not Assigned';
+  const getGroupName = (deptId: string, groupId: string) => {
+    const dept = departments.find(d => d.id === deptId);
+    return dept?.groups?.find((g: any) => g.id === groupId)?.name || 'Not Assigned';
+  };
+
+  const handleAction = async (status: 'APPROVED' | 'REJECTED') => {
+    if (!submission || !user) return;
+    try {
+      const res = await fetch('/api/submissions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: submission.id, status, summary: comment }),
+      });
+      if (res.ok) router.push('/dashboard/manager/queue');
+    } catch (e) {
+      console.error('Action failed', e);
+    }
   };
 
   const exportPDF = async () => {
     if (!reportRef.current) return;
-    
-    const canvas = await html2canvas(reportRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false
-    });
-    
+    const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, logging: false });
     const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'px',
-      format: [canvas.width / 2, canvas.height / 2]
-    });
-    
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
     pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
     pdf.save(`Assessment_${submission?.trainerName}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
+  if (isLoading) return <div className="flex items-center justify-center h-64 text-[#141414]/40 text-sm">Loading...</div>;
   if (!submission || !template) return null;
 
   return (
@@ -91,26 +103,18 @@ export default function ReviewSubmissionPage() {
           Back to Queue
         </button>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => window.print()}
-            className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all"
-          >
+          <button onClick={() => window.print()} className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all">
             <Printer size={20} />
           </button>
-          <button 
-            onClick={exportPDF}
-            className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all"
-          >
+          <button onClick={exportPDF} className="p-2 hover:bg-[#141414]/5 rounded text-[#141414]/30 hover:text-[#141414] transition-all">
             <Download size={20} />
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Review Content */}
         <div className="lg:col-span-2 space-y-8">
           <div ref={reportRef} className="bg-white border border-[#141414]/10 p-8 lg:p-12 shadow-sm">
-            {/* Report Header */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-12 border-b border-[#141414]/10 pb-8">
               <div className="space-y-2">
                 <div className="w-12 h-12 bg-[#141414] text-white flex items-center justify-center rounded mb-4">
@@ -130,7 +134,6 @@ export default function ReviewSubmissionPage() {
               </div>
             </div>
 
-            {/* Trainer Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 bg-[#141414]/5 p-6 border border-[#141414]/10">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-white border border-[#141414]/10 rounded-full flex items-center justify-center text-[#141414]/40">
@@ -147,9 +150,7 @@ export default function ReviewSubmissionPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Department</p>
-                  <p className="text-sm font-bold text-[#141414]">
-                    {store.getDepartments().find(d => d.id === submission.departmentId)?.name || 'Not Assigned'}
-                  </p>
+                  <p className="text-sm font-bold text-[#141414]">{getDeptName(submission.departmentId)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -158,17 +159,11 @@ export default function ReviewSubmissionPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Group</p>
-                  <p className="text-sm font-bold text-[#141414]">
-                    {submission.departmentId 
-                      ? store.getGroups(submission.departmentId).find(g => g.id === submission.groupId)?.name || 'Not Assigned'
-                      : 'Not Assigned'
-                    }
-                  </p>
+                  <p className="text-sm font-bold text-[#141414]">{getGroupName(submission.departmentId, submission.groupId)}</p>
                 </div>
               </div>
             </div>
 
-            {/* Answers */}
             <div className="space-y-10">
               {template.pages.map((page, pIdx) => (
                 <div key={page.id} className="space-y-8">
@@ -194,15 +189,10 @@ export default function ReviewSubmissionPage() {
                           {(() => {
                             const value = submission.answers[item.id];
                             if (!value) return <span className="opacity-30">No answer provided</span>;
-                            
                             if (item.type === QuestionType.DATE) {
-                              try {
-                                return format(new Date(value), item.dateTimeConfig?.format === '24H' ? 'PPP HH:mm' : 'PPP p');
-                              } catch (e) {
-                                return value;
-                              }
+                              try { return format(new Date(value), item.dateTimeConfig?.format === '24H' ? 'PPP HH:mm' : 'PPP p'); }
+                              catch { return value; }
                             }
-                            
                             return value;
                           })()}
                         </div>
@@ -215,35 +205,33 @@ export default function ReviewSubmissionPage() {
           </div>
         </div>
 
-        {/* Action Sidebar */}
         <div className="space-y-6">
           <div className="bg-white border border-[#141414]/10 p-6 sticky top-24">
             <h3 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-6 flex items-center gap-2">
               <MessageSquare size={14} className="text-[#F27D26]" />
               Manager Feedback
             </h3>
-            
+
             {submission.status === 'PENDING' ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Comments / Notes</label>
-                  <textarea 
+                  <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Add your review notes here..."
                     className="w-full p-3 bg-[#141414]/5 border border-[#141414]/10 focus:border-[#F27D26] focus:outline-none text-sm h-40 italic serif"
                   />
                 </div>
-
                 <div className="grid grid-cols-1 gap-3 pt-4">
-                  <button 
+                  <button
                     onClick={() => handleAction('APPROVED')}
                     className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-green-700 transition-all"
                   >
                     <CheckCircle2 size={16} />
                     Approve Assessment
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleAction('REJECTED')}
                     className="w-full flex items-center justify-center gap-2 py-4 border border-red-500 text-red-600 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 transition-all"
                   >
@@ -263,16 +251,12 @@ export default function ReviewSubmissionPage() {
                     <p className="text-sm font-bold">{submission.status}</p>
                   </div>
                 </div>
-                
                 {submission.summary && (
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-2">Manager Comments</p>
-                    <p className="text-sm italic serif text-[#141414]/60 bg-[#141414]/5 p-4 border-l-2 border-[#141414]/10">
-                      "{submission.summary}"
-                    </p>
+                    <p className="text-sm italic serif text-[#141414]/60 bg-[#141414]/5 p-4 border-l-2 border-[#141414]/10">"{submission.summary}"</p>
                   </div>
                 )}
-
                 <div className="pt-4 border-t border-[#141414]/5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 mb-1">Assessed By</p>
                   <p className="text-sm font-bold text-[#141414]">{submission.managerName || 'System'}</p>

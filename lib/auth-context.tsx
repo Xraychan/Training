@@ -1,8 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from './types';
-import { store, hashPassword } from './store';
+import { User } from './types';
 
 interface AuthContextType {
   user: User | null;
@@ -57,7 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setUser(null);
     localStorage.removeItem('auth_user');
-    // For a complete logout, we should also clear the cookie on the server
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   };
 
