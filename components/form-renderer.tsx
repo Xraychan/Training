@@ -135,6 +135,8 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
       groupId: user.groupId || '',
       submittedAt: new Date().toISOString(),
       status: 'PENDING',
+      traineeName: '',
+      traineeGroup: '',
       answers,
     };
     setShowThankYou(true); // Show Thank You screen first
