@@ -127,30 +127,6 @@ export default function LoginPage() {
           </div>
         </form>
 
-        <div className="mt-8 pt-8 border-t border-[#141414]/10">
-          <p className="text-[10px] uppercase tracking-widest text-[#141414]/40 font-bold mb-4">
-            Demo Accounts (password: Certify123!):
-          </p>
-          <div className="grid grid-cols-1 gap-2">
-            {[
-              { email: 'admin@example.com', role: 'Super Admin', icon: Shield },
-              { email: 'manager@example.com', role: 'Manager', icon: ClipboardCheck },
-              { email: 'trainer@example.com', role: 'Trainer', icon: UserIcon },
-            ].map((demo) => (
-              <button
-                key={demo.email}
-                onClick={() => fillDemo(demo.email)}
-                className="flex items-center gap-3 p-2 hover:bg-[#141414]/5 transition-colors text-left group"
-              >
-                <demo.icon size={14} className="text-[#141414]/40 group-hover:text-[#F27D26]" />
-                <div>
-                  <p className="text-xs font-bold text-[#141414]">{demo.role}</p>
-                  <p className="text-[10px] text-[#141414]/50 font-mono">{demo.email}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
       </motion.div>
     </div>
   );
