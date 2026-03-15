@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { store } from '@/lib/store';
 import { 
   FormTemplate, 
   FormPage, 
@@ -51,7 +50,14 @@ interface FormEditorProps {
 export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEditorProps) {
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [globalLists] = useState<GlobalList[]>(() => store.getGlobalLists());
+  const [globalLists, setGlobalLists] = useState<GlobalList[]>([]);
+
+  useEffect(() => {
+    fetch('/api/global-lists')
+      .then(res => res.json())
+      .then(data => setGlobalLists(data.globalLists || []))
+      .catch(e => console.error('Failed to load global lists', e));
+  }, []);
   const [template, setTemplate] = useState<FormTemplate>(initialTemplate || {
     id: uuidv4(),
     title: 'New Assessment Form',

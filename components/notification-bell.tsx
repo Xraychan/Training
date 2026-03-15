@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell, CheckCircle2, Clock, X } from 'lucide-react';
-import { store } from '@/lib/store';
 import { AppNotification, User, UserRole } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,26 +16,29 @@ export default function NotificationBell({ user }: NotificationBellProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const updateNotifications = () => {
-      const all = store.getNotifications();
-      // Filter for managers: show only pending approvals for their department and group
-      // Admins/Super Admins see all notifications
-      const filtered = all.filter(n => {
-        if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN) return true;
-        return n.targetDepartmentId === user.departmentId && n.targetGroupId === user.groupId;
-      });
-      setNotifications(filtered);
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        const data = await res.json();
+        const all: AppNotification[] = data.notifications || [];
+        const filtered = all.filter(n => {
+          if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN) return true;
+          return n.targetDepartmentId === user.departmentId && n.targetGroupId === user.groupId;
+        });
+        setNotifications(filtered);
+      } catch (e) {
+        console.error('Failed to fetch notifications', e);
+      }
     };
 
-    updateNotifications();
-    const interval = setInterval(updateNotifications, 5000); // Poll every 5 seconds for simulation
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
 
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       clearInterval(interval);
@@ -46,13 +48,18 @@ export default function NotificationBell({ user }: NotificationBellProps) {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleMarkRead = (e: React.MouseEvent, id: string) => {
+  const handleMarkRead = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    store.markNotificationRead(id);
-    setNotifications(store.getNotifications().filter(n => {
-      if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN) return true;
-      return n.targetDepartmentId === user.departmentId && n.targetGroupId === user.groupId;
-    }));
+    try {
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (e) {
+      console.error('Failed to mark notification read', e);
+    }
   };
 
   return (
@@ -81,7 +88,10 @@ export default function NotificationBell({ user }: NotificationBellProps) {
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Notifications</h3>
               {notifications.length > 0 && (
                 <button 
-                  onClick={() => store.clearNotifications()}
+                  onClick={async () => {
+                    await fetch('/api/notifications', { method: 'DELETE' });
+                    setNotifications([]);
+                  }}
                   className="text-[10px] text-[#141414]/40 hover:text-red-500 font-bold uppercase"
                 >
                   Clear All

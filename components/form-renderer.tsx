@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { store } from '@/lib/store';
 import { 
   FormTemplate, 
   FormPage, 
   FormQuestion, 
   FormSection, 
   QuestionType,
-  FormSubmission
+  FormSubmission,
+  GlobalList,
+  Department
 } from '@/lib/types';
 import { 
   ArrowLeft, 
@@ -38,6 +39,19 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
   const [showSummary, setShowSummary] = useState(false);
   const [showThankYou, setShowThankYou] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [globalLists, setGlobalLists] = useState<GlobalList[]>([]);
+
+  useEffect(() => {
+    fetch('/api/departments')
+      .then(r => r.json())
+      .then(d => setDepartments(d.departments || []))
+      .catch(console.error);
+    fetch('/api/global-lists')
+      .then(r => r.json())
+      .then(d => setGlobalLists(d.globalLists || []))
+      .catch(console.error);
+  }, []);
 
   const theme = getTheme(template.themeId);
 
@@ -179,14 +193,14 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Department</p>
             <p className="font-bold text-[#141414]">
-              {store.getDepartments().find(d => d.id === user.departmentId)?.name || 'Not Assigned'}
+              {departments.find(d => d.id === user.departmentId)?.name || 'Not Assigned'}
             </p>
           </div>
           <div className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Group</p>
             <p className="font-bold text-[#141414]">
               {user.departmentId 
-                ? store.getGroups(user.departmentId).find(g => g.id === user.groupId)?.name || 'Not Assigned'
+                ? departments.find(d => d.id === user.departmentId)?.groups?.find((g: any) => g.id === user.groupId)?.name || 'Not Assigned'
                 : 'Not Assigned'
               }
             </p>
@@ -374,7 +388,7 @@ export default function FormRenderer({ template, user, onComplete, onCancel }: F
                   {(() => {
                     let options = item.options || [];
                     if (item.useGlobalList && item.globalListId) {
-                      const list = store.getGlobalLists().find(l => l.id === item.globalListId);
+                      const list = globalLists.find(l => l.id === item.globalListId);
                       if (list) options = list.items;
                     }
 
