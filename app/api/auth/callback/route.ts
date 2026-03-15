@@ -99,7 +99,8 @@ function successPage(provider: string) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const provider = searchParams.get('provider');
+  // Provider is passed via 'state' param since Google doesn't allow query params in redirect URIs
+  const provider = searchParams.get('state') || searchParams.get('provider');
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
@@ -129,7 +130,7 @@ export async function GET(request: Request) {
     return errorPage('You must be logged in to connect an account.');
   }
 
-  const redirectUri = `${APP_URL}/api/auth/callback?provider=${provider}`;
+  const redirectUri = `${APP_URL}/api/auth/callback`;
 
   try {
     let tokenData: any;

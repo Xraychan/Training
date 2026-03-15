@@ -5,7 +5,8 @@ export async function GET(request: Request) {
   const provider = searchParams.get('provider');
 
   const appUrl = process.env.APP_URL || 'http://localhost:3000';
-  const redirectUri = `${appUrl}/api/auth/callback?provider=${provider}`;
+  // No query params in redirect URI — Google rejects them. Pass provider via state instead.
+  const redirectUri = `${appUrl}/api/auth/callback`;
 
   let authUrl = '';
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
       ].join(' '),
       access_type: 'offline',
       prompt: 'consent',
+      state: 'google', // pass provider through state param
     });
     authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
       response_type: 'code',
       scope: 'Files.ReadWrite.All Sites.ReadWrite.All offline_access',
       response_mode: 'query',
+      state: 'microsoft', // pass provider through state param
     });
     authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
 
