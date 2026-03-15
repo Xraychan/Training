@@ -81,12 +81,26 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
+  // Prevent self-deletion
+  if (id === currentUser.userId) {
+    return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
+  }
+
   try {
     await prisma.user.delete({
       where: { id },
     });
     return NextResponse.json({ message: 'User deleted' });
-  } catch (e) {
+  } catch (e: any) {
+    console.error('User deletion error:', e);
+    
+    // Handle foreign key constraint error (P2003)
+    if (e.code === 'P2003') {
+      return NextResponse.json({ 
+        error: 'Cannot delete user because they have submitted assessments or managed reviews. Consider deactivating them instead (future feature).' 
+      }, { status: 400 });
+    }
+    
     return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
   }
 }

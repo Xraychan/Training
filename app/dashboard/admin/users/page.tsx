@@ -113,11 +113,16 @@ export default function UserManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      if (!res.ok) throw new Error('Failed to delete user');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete user');
+      }
       setUsers(prev => prev.filter(u => u.id !== id));
       setConfirmDeleteId(null);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Delete failed', e);
+      alert(e.message);
+      setConfirmDeleteId(null);
     }
   };
 
