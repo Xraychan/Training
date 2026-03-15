@@ -128,64 +128,122 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Activity Area */}
+        {/* Notice Board Area */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-[#141414]/10 overflow-hidden">
-            <div className="p-6 border-b border-[#141414]/10 flex items-center justify-between">
-              <h3 className="font-bold uppercase tracking-widest text-sm">Recent Activity</h3>
-              <button className="text-[10px] font-bold uppercase tracking-widest text-[#F27D26] hover:underline">View All</button>
-            </div>
-            <div className="divide-y divide-[#141414]/10">
-              {[1, 2, 3].map((item) => (
-                <div key={item} className="p-6 flex items-center justify-between hover:bg-[#141414]/5 transition-colors cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-[#141414]/5 rounded flex items-center justify-center text-[#141414]/40">
-                      <FileText size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-[#141414]">Hand Hygiene Competency</p>
-                      <p className="text-xs text-[#141414]/50">Submitted by Sarah Connor • 2 hours ago</p>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} className="text-[#141414]/20 group-hover:text-[#F27D26] group-hover:translate-x-1 transition-all" />
-                </div>
-              ))}
-            </div>
-          </div>
+          <NoticeBoard />
         </div>
 
-        {/* Sidebar Info Area */}
+        {/* Status / Info Area (Optional future use) */}
         <div className="space-y-6">
-          <div className="bg-[#141414] text-white p-8">
-            <h3 className="font-bold uppercase tracking-widest text-xs mb-4 text-[#F27D26]">System Announcement</h3>
-            <p className="text-sm leading-relaxed mb-6 italic serif opacity-80">
-              &quot;The new Medical Trainers protocols have been updated. Please ensure all relevant assessments are completed by the end of the month.&quot;
-            </p>
-            <button className="text-[10px] font-bold uppercase tracking-widest border-b border-white/20 pb-1 hover:text-[#F27D26] hover:border-[#F27D26] transition-all">
-              Read Full Memo
-            </button>
-          </div>
-
-          <div className="bg-white border border-[#141414]/10 p-6">
-            <h3 className="font-bold uppercase tracking-widest text-xs mb-4">Quick Links</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Help Center', href: '#' },
-                { label: 'Policy Documents', href: '#' },
-                { label: 'Contact Support', href: '#' },
-              ].map((link) => (
-                <Link 
-                  key={link.label} 
-                  href={link.href}
-                  className="block text-xs font-bold text-[#141414]/60 hover:text-[#F27D26] transition-colors"
-                >
-                  → {link.label}
-                </Link>
-              ))}
-            </div>
+          <div className="bg-white border border-[#141414]/10 p-8 flex flex-col items-center justify-center text-center min-h-[200px]">
+             <TrendingUp size={40} className="text-[#141414]/10 mb-4" />
+             <p className="text-xs font-bold uppercase tracking-widest text-[#141414]/30">Analytics Insight</p>
+             <p className="text-sm italic serif text-[#141414]/50 mt-2">More data insights will appear here as assessments are processed.</p>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+function NoticeBoard() {
+  const { user } = useAuth();
+  const [notice, setNotice] = useState<{ id: string; content: string; updatedBy: string; updatedAt: string } | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchNotice = async () => {
+    try {
+      const res = await fetch('/api/notice');
+      const data = await res.json();
+      setNotice(data);
+    } catch (err) {
+      console.error('Failed to fetch notice:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotice();
+  }, []);
+
+  if (isLoading) return <div className="bg-[#141414] animate-pulse h-[250px]" />;
+  if (!notice) return null;
+
+  const canEdit = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER].includes(user?.role as UserRole);
+
+  const handleSave = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('/api/notice', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent, updatedBy: user.id })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setNotice(updated);
+        setIsEditing(false);
+      }
+    } catch (err) {
+      console.error('Failed to save notice:', err);
+    }
+  };
+
+  return (
+    <div className="bg-[#141414] text-white p-8 group relative min-h-[250px] flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-bold uppercase tracking-widest text-xs text-[#F27D26]">Notice</h3>
+        {canEdit && !isEditing && (
+          <button 
+            onClick={() => {
+              setEditContent(notice.content.replace(/^"|"$/g, ''));
+              setIsEditing(true);
+            }}
+            className="text-[10px] font-bold uppercase tracking-widest border border-white/20 px-3 py-1 hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
+          >
+            Edit Notice
+          </button>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-4 flex-grow flex flex-col">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 p-4 text-sm font-serif italic text-white/90 focus:outline-none focus:border-[#F27D26] min-h-[120px] resize-none"
+            placeholder="Enter notice message..."
+          />
+          <div className="flex justify-end gap-3 mt-auto">
+            <button 
+              onClick={() => setIsEditing(false)}
+              className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 hover:bg-white/5 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave}
+              className="bg-[#F27D26] text-white text-[10px] font-bold uppercase tracking-widest px-6 py-2 hover:bg-[#F27D26]/90 transition-all"
+            >
+              Save Change
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-grow flex flex-col">
+          <p className="text-xl md:text-2xl leading-relaxed mb-6 italic serif opacity-90">
+            {notice.content.startsWith('"') ? notice.content : `"${notice.content}"`}
+          </p>
+          <div className="mt-auto pt-6 border-t border-white/10 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-white/30">
+            <span>Posted on {new Date(notice.updatedAt).toLocaleDateString()}</span>
+            <span>Ref: {notice.id.split('-')[1]}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

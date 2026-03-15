@@ -136,3 +136,10 @@ export interface AppNotification {
   read: boolean;
   createdAt: string;
 }
+
+export interface Notice {
+  id: string;
+  content: string;
+  updatedBy: string;
+  updatedAt: string;
+}

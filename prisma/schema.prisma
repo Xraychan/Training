@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  role           String    // SUPER_ADMIN, ADMIN, MANAGER, TRAINER
+  departmentId   String?
+  groupId        String?
+  passwordHash   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  submissions    FormSubmission[] @relation("TrainerSubmissions")
+  managedReviews FormSubmission[] @relation("ManagerReviews")
+}
+
+model Department {
+  id     String  @id @default(uuid())
+  name   String  @unique
+  groups Group[]
+}
+
+model Group {
+  id           String     @id @default(uuid())
+  name         String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([name, departmentId])
+}
+
+model FormTemplate {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  createdBy   String
+  structure   String   // JSON string of FormPage[]
+  theme       String?  // JSON string of FormTheme
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions FormSubmission[]
+}
+
+model FormSubmission {
+  id           String   @id @default(uuid())
+  templateId   String
+  template     FormTemplate @relation(fields: [templateId], references: [id])
+  trainerId    String
+  trainer      User     @relation("TrainerSubmissions", fields: [trainerId], references: [id])
+  trainerName  String
+  departmentId String
+  groupId      String
+  managerId    String?
+  manager      User?    @relation("ManagerReviews", fields: [managerId], references: [id])
+  managerName  String?
+  submittedAt  DateTime @default(now())
+  status       String   // PENDING, APPROVED, REJECTED
+  answers      String   // JSON string of answers
+  summary      String?
+
+  notifications AppNotification[]
+}
+
+model AppNotification {
+  id                 String   @id @default(uuid())
+  type               String   // PENDING_APPROVAL, SYSTEM
+  submissionId       String?
+  submission         FormSubmission? @relation(fields: [submissionId], references: [id])
+  targetDepartmentId String
+  targetGroupId      String
+  message            String
+  read               Boolean  @default(false)
+  createdAt          DateTime @default(now())
+}
+
+model GlobalList {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  items           String   // JSON string array
+  sorting         String   // NONE, ASC, DESC
+  isCaseSensitive Boolean  @default(false)
+}
+
+model Notice {
+  id        String   @id @default(uuid())
+  content   String
+  updatedBy String
+  updatedAt DateTime @default(now())
+}

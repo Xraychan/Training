@@ -119,6 +119,7 @@ interface StoreData {
   departments: Department[];
   globalLists: GlobalList[];
   notifications: AppNotification[];
+  notice?: { id: string; content: string; updatedBy: string; updatedAt: string };
 }
 
 class Store {
@@ -128,6 +129,7 @@ class Store {
   private departments: Department[];
   private globalLists: GlobalList[];
   private notifications: AppNotification[];
+  private notice: { id: string; content: string; updatedBy: string; updatedAt: string };
 
   constructor() {
     const defaults: StoreData = {
@@ -140,6 +142,12 @@ class Store {
         { id: 'list-2', name: 'Hospital Units', items: ['ICU', 'Emergency', 'Radiology', 'Pediatrics'], sorting: 'ASC', isCaseSensitive: false }
       ],
       notifications: [],
+      notice: {
+        id: 'notice-1',
+        content: '"The new Medical Trainers protocols have been updated. Please ensure all relevant assessments are completed by the end of the month."',
+        updatedBy: 'user-1',
+        updatedAt: new Date().toISOString()
+      }
     };
 
     if (typeof window !== 'undefined') {
@@ -155,6 +163,7 @@ class Store {
           this.departments = parsed.departments ?? defaults.departments;
           this.globalLists = parsed.globalLists ?? defaults.globalLists;
           this.notifications = parsed.notifications ?? defaults.notifications;
+          this.notice = parsed.notice ?? defaults.notice!;
 
           // Backfill passwordHash for any legacy users that don't have one
           let needsPersist = false;
@@ -178,6 +187,7 @@ class Store {
     this.departments = defaults.departments;
     this.globalLists = defaults.globalLists;
     this.notifications = defaults.notifications;
+    this.notice = defaults.notice!;
   }
 
   private persist() {
@@ -190,6 +200,7 @@ class Store {
           departments: this.departments,
           globalLists: this.globalLists,
           notifications: this.notifications,
+          notice: this.notice,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch (e) {
@@ -354,6 +365,19 @@ class Store {
       dept.groups = dept.groups.filter(g => g.id !== groupId);
       this.persist();
     }
+  }
+
+  // ── Notice ──────────────────────────────────────────────────────────────────
+  getNotice() { return this.notice; }
+  updateNotice(content: string, userId: string) {
+    this.notice = {
+      id: this.notice.id,
+      content,
+      updatedBy: userId,
+      updatedAt: new Date().toISOString()
+    };
+    this.persist();
+    return this.notice;
   }
 }
 
