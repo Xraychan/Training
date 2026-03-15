@@ -124,26 +124,26 @@ export default function SettingsPage() {
 
     setIsChangingPw(true);
     try {
-      // Get the latest user data from the store to check password
-      const fullUser = store.getUsers().find(u => u.id === user.id);
-      if (!fullUser) { setPwError('User not found.'); return; }
+      const response = await fetch('/api/auth/profile/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
 
-      const oldHash = await hashPassword(currentPassword);
-      if (fullUser.passwordHash !== oldHash) {
-        setPwError('Incorrect current password.');
+      const data = await response.json();
+
+      if (!response.ok) {
+        setPwError(data.error || 'Failed to update password.');
         return;
       }
 
-      const newHash = await hashPassword(newPassword);
-      store.updateUserPassword(user.id, newHash);
-      
       setPwSuccess(true);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setShowPw(false);
     } catch (err) {
-      setPwError('An error occurred while changing password.');
+      setPwError('An unexpected error occurred. Please try again.');
     } finally {
       setIsChangingPw(false);
     }
