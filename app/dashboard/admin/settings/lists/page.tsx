@@ -29,7 +29,7 @@ export default function GlobalListsPage() {
   // ── Fetch from API ──────────────────────────────────────────────────────────
   const fetchLists = async () => {
     try {
-      const res = await fetch('/api/global-lists');
+      const res = await fetch('/api/global-lists', { credentials: 'include' });
       const data = await res.json();
       setLists(data.globalLists || []);
     } catch (e) {
@@ -140,14 +140,14 @@ export default function GlobalListsPage() {
 
     try {
       if (editingList) {
-        const res = await fetch('/api/global-lists', {
+        const res = await fetch('/api/global-lists', { credentials: 'include',
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingList.id, name, items: sortedItems, sorting, isCaseSensitive }),
         });
         if (!res.ok) throw new Error('Failed to update list');
       } else {
-        const res = await fetch('/api/global-lists', {
+        const res = await fetch('/api/global-lists', { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, items: sortedItems, sorting, isCaseSensitive }),
@@ -170,7 +170,7 @@ export default function GlobalListsPage() {
   // ── Delete ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     try {
-      await fetch('/api/global-lists', {
+      await fetch('/api/global-lists', { credentials: 'include',
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),

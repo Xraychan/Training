@@ -6,7 +6,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
 
 function getCurrentUser(req: NextRequest) {
   try {
-    const token = req.cookies.get('auth_token')?.value;
+    // Try cookie first
+    let token = req.cookies.get('auth_token')?.value;
+
+    // Fallback: check Authorization header (Bearer token)
+    if (!token) {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
     if (!token) return null;
     return jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
   } catch {
@@ -33,7 +43,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ globalLists: lists.map(parseList) });
 }
 
-// POST /api/global-lists — create a new list (SUPER_ADMIN / ADMIN only)
+// POST /api/global-lists
 export async function POST(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -48,18 +58,13 @@ export async function POST(req: NextRequest) {
   if (existing) return NextResponse.json({ error: 'A list with this name already exists' }, { status: 409 });
 
   const list = await prisma.globalList.create({
-    data: {
-      name,
-      items: JSON.stringify(items),
-      sorting,
-      isCaseSensitive,
-    },
+    data: { name, items: JSON.stringify(items), sorting, isCaseSensitive },
   });
 
   return NextResponse.json({ globalList: parseList(list) }, { status: 201 });
 }
 
-// PATCH /api/global-lists — update a list
+// PATCH /api/global-lists
 export async function PATCH(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -76,15 +81,11 @@ export async function PATCH(req: NextRequest) {
   if (sorting !== undefined) updateData.sorting = sorting;
   if (isCaseSensitive !== undefined) updateData.isCaseSensitive = isCaseSensitive;
 
-  const list = await prisma.globalList.update({
-    where: { id },
-    data: updateData,
-  });
-
+  const list = await prisma.globalList.update({ where: { id }, data: updateData });
   return NextResponse.json({ globalList: parseList(list) });
 }
 
-// DELETE /api/global-lists — delete a list
+// DELETE /api/global-lists
 export async function DELETE(req: NextRequest) {
   const currentUser = getCurrentUser(req);
   if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
