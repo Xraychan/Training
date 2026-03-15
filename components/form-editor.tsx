@@ -59,7 +59,28 @@ export default function FormEditor({ initialTemplate, onSave, onCancel }: FormEd
     createdBy: 'user-1',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    pages: [{ id: uuidv4(), sections: [] }]
+    pages: [{ 
+      id: uuidv4(), 
+      sections: [
+        { id: 'section-id-meta', title: 'Identification', description: 'Trainee Information' } as FormSection,
+        { 
+          id: '__trainee_group__', 
+          type: QuestionType.SELECT, 
+          label: 'Assessed Group', 
+          required: true,
+          useGlobalList: true,
+          globalListId: 'list-group-global' // Placeholder, will create if needed
+        } as FormQuestion,
+        { 
+          id: '__trainee_name__', 
+          type: QuestionType.SELECT, 
+          label: 'Assessed Name', 
+          required: true,
+          useGlobalList: true,
+          globalListId: 'list-name-global' // Placeholder, will create if needed
+        } as FormQuestion
+      ] 
+    }]
   });
 
   useEffect(() => {

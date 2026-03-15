@@ -139,7 +139,9 @@ class Store {
       departments: [...MOCK_DEPARTMENTS],
       globalLists: [
         { id: 'list-1', name: 'Common Medical Procedures', items: ['Appendectomy', 'Cholecystectomy', 'Laparoscopy'], sorting: 'ASC', isCaseSensitive: false },
-        { id: 'list-2', name: 'Hospital Units', items: ['ICU', 'Emergency', 'Radiology', 'Pediatrics'], sorting: 'ASC', isCaseSensitive: false }
+        { id: 'list-2', name: 'Hospital Units', items: ['ICU', 'Emergency', 'Radiology', 'Pediatrics'], sorting: 'ASC', isCaseSensitive: false },
+        { id: 'list-group-global', name: 'Global Groups', items: ['NURSING', 'MEDICAL', 'ALLIED_HEALTH', 'ADMIN'], sorting: 'ASC', isCaseSensitive: false },
+        { id: 'list-name-global', name: 'Global Names', items: ['John Doe', 'Jane Smith', 'Bob Wilson'], sorting: 'ASC', isCaseSensitive: false }
       ],
       notifications: [],
       notice: {
@@ -246,20 +248,47 @@ class Store {
   // ── Submissions ─────────────────────────────────────────────────────────────
   getSubmissions() { return this.submissions; }
   addSubmission(submission: FormSubmission) {
+    // Extract trainee metadata from answers if available
+    const traineeGroup = submission.answers['__trainee_group__'] || '';
+    const traineeName = submission.answers['__trainee_name__'] || '';
+    
+    submission.traineeGroup = traineeGroup;
+    submission.traineeName = traineeName;
+    
     this.submissions.push(submission);
     
-    // Create notification for managers
+    // Create notification for MANAGERS in the matching Department AND Group
     const template = this.templates.find(t => t.id === submission.templateId);
     const notification: AppNotification = {
       id: uuidv4(),
       type: 'PENDING_APPROVAL',
       submissionId: submission.id,
       targetDepartmentId: submission.departmentId,
-      targetGroupId: submission.groupId,
-      message: `New assessment "${template?.title || 'Form'}" submitted by ${submission.trainerName}`,
+      targetGroupId: submission.groupId, // Trainer's group (for context)
+      message: `New assessment "${template?.title || 'Form'}" (${traineeName}) submitted by ${submission.trainerName}`,
       read: false,
       createdAt: new Date().toISOString(),
     };
+
+    // Note: In a real system, we'd send an email here.
+    // For this prototype, we'll refine who sees the notification in the UI or filter it here.
+    // To ensure managers only see their own Dept+Group, we'll store the target metadata.
+    // The user's requirement: "match Manager according to their department and group"
+    // We update targetDepartmentId and targetGroupId to match the TRAINEE'S group if that's the intent,
+    // but usually, it's the Trainer's submission location that determines the manager.
+    // User says: "If assessment form with Emergency + Nursing is done, then send email notification to Manger in Emergency + Nursing." 
+    // This implies we should use the ASSESSED group/dept.
+    
+    // If we have assessed meta, use it for target routing
+    if (traineeGroup) {
+      // Find which group ID this name corresponds to in the department
+      const dept = this.departments.find(d => d.id === submission.departmentId);
+      const group = dept?.groups.find(g => g.name === traineeGroup);
+      if (group) {
+        notification.targetGroupId = group.id;
+      }
+    }
+
     this.notifications.unshift(notification);
     
     this.persist();

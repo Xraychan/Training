@@ -176,9 +176,10 @@ export default function ManagerQueuePage() {
                   <FileText size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-bold text-[#141414]">{templates[s.templateId]?.title}</h3>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                    <p className="text-xs font-bold text-[#141414]/60 uppercase tracking-widest">Trainer: {s.trainerName}</p>
+                    <p className="text-xs font-bold text-[#F27D26] uppercase tracking-widest">Trainee: {s.traineeName || 'N/A'}</p>
+                    <p className="text-xs font-bold text-[#141414]/60 uppercase tracking-widest">Group: {s.traineeGroup || 'N/A'}</p>
+                    <p className="text-xs font-bold text-[#141414]/40 uppercase tracking-widest border-l border-[#141414]/10 pl-4">By: {s.trainerName}</p>
                     <p className="text-[10px] text-[#141414]/40 font-mono uppercase">Submitted: {format(new Date(s.submittedAt), 'MMM dd, HH:mm')}</p>
                     {s.managerName && (
                       <p className="text-[10px] font-bold text-[#141414]/40 uppercase tracking-widest border-l border-[#141414]/10 pl-4">
@@ -248,7 +249,9 @@ export default function ManagerQueuePage() {
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-[#141414]">{templates[s.templateId]?.title}</h3>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                      <p className="text-xs font-bold text-[#141414]/60 uppercase tracking-widest">Trainer: {s.trainerName}</p>
+                      <p className="text-xs font-bold text-[#F27D26] uppercase tracking-widest">Trainee: {s.traineeName || 'N/A'}</p>
+                      <p className="text-xs font-bold text-[#141414]/60 uppercase tracking-widest">Group: {s.traineeGroup || 'N/A'}</p>
+                      <p className="text-xs font-bold text-[#141414]/40 uppercase tracking-widest border-l border-[#141414]/10 pl-4">By: {s.trainerName}</p>
                       <p className="text-[10px] text-[#141414]/40 font-mono uppercase">Submitted: {format(new Date(s.submittedAt), 'MMM dd, HH:mm')}</p>
                       {s.managerName && (
                         <p className="text-[10px] font-bold text-[#141414]/40 uppercase tracking-widest border-l border-[#141414]/10 pl-4">

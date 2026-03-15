@@ -122,6 +122,8 @@ export interface FormSubmission {
   managerName?: string;
   submittedAt: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  traineeName: string;
+  traineeGroup: string;
   answers: Record<string, any>;
   summary?: string;
 }

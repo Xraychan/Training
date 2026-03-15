@@ -67,6 +67,8 @@ model FormSubmission {
   managerName  String?
   submittedAt  DateTime @default(now())
   status       String   // PENDING, APPROVED, REJECTED
+  traineeName  String   @default("")
+  traineeGroup String   @default("")
   answers      String   // JSON string of answers
   summary      String?
 
